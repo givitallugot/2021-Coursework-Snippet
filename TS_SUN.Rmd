@@ -1,0 +1,67 @@
+---
+title: "TS"
+author: "SUNMI JU"
+date: "5/16/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = "center", message=F, warning=F)
+
+library(ftsa)
+```
+
+* COVID19 - 480일 2020.01.22부터 2021.05.15까지 일별 확진자
+* SARS - 
+* MERSE - 
+* H1N1 - 
+
+# Data Cleansing
+```{r eval=FALSE}
+print("Don't run me")
+covid <- read.csv('../Data/COVID19.csv')
+covid_ <- aggregate(. ~ Country, covid[2:ncol(covid)], sum)
+
+colname <- as.character(as.Date(as.character(c(
+  seq(200122,200131), seq(200201,200229), seq(200301,200331), 
+  seq(200401,200430), seq(200501,200531), seq(200601,200630),
+  seq(200701,200731), seq(200801,200831), seq(200901,200930),
+  seq(201001,201031), seq(201101,201130), seq(201201,201231),
+  seq(210101,210131), seq(210201,210228), seq(210301,210331),
+  seq(210401,210430), seq(210501,210515))), "%y%m%d"))
+
+sum(is.na(colname)) # Fine
+colnames(covid_) <- c("Country", colname)
+
+sars <- read.csv('../Data/SARS.csv')
+sars$Date <- as.Date(sars$Date, "%Y.%m.%d")
+
+h1n1 <- read.csv('../Data/H1N1.csv')
+h1n1$Date <- as.Date(h1n1$Date, "%Y.%m.%d")
+
+write.csv(covid_, '../Data/COVID19_.csv', row.names = FALSE)
+```
+
+# Make fts Object
+```{r}
+library(ftsa)
+
+# 일단 sparse 한거 생각하지 않고, 그냥 무조건 20일씩 잘라서
+covid <- read.csv('../Data/COVID19_.csv')
+
+x <- seq(1, 20, 1)
+y <- matrix(as.numeric(covid[covid$Country == 'China',42:ncol(covid)]), ncol=as.numeric(440/20), byrow=FALSE)
+covid_fts <- rainbow::fts(x = x, y = y, xname="Date", yname="China new confimation cases by 20 days")
+# colnames(covid_fts$y) <- seq_along(colnames(covid_fts$y))
+# colnames(covid_fts$x) <- seq_along(colnames(covid_fts$x))
+
+colnames(covid_fts$y) <- c(as.character(seq(1,as.numeric(440/20))))
+rownames(covid_fts$y) <- c(as.character(seq(1,20)))
+
+plot(covid_fts, col = gray(0.8), xlab = "Date", ylab = "Daily New Confirmation Cases", main = "China New Confimation Cases by 20 days", ylim = c(min(y)*0.95, max(y)*1.05))
+
+# Time Series Predict
+plot(forecast(ftsm(covid_fts, order = 2), h = 2), add = TRUE, ylim = c(min(y)*0.95, max(y)*1.05)) # 20일 예측
+legend("bottomright", c("1-20 days", "21-40 days"), col = c("red", "blue"), lty = 1)
+```
+
