@@ -1,0 +1,282 @@
+---
+title: "HW3"
+author: "SUNMI JU"
+date: "5/23/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = "center", message=F, warning=F, fig.width = 6, fig.height = 4) 
+```
+<br><br>
+
+## 1. Compare IPW, Standardization and Doubly Robust Estimator
+### 1-1. Simulate Data
+- The true outcome model is: E[Y|A,C1,C2] = -5.23 + 1.56*A + 3.56*C1 + 0.87*C2
+```{r}
+set.seed(1243)
+simul_data <- function(n, A_split, C1_split, C2_split, B0, B1, B2, B3){
+  # A=1
+  df_A1 <- data.frame(A = rep(1, as.integer(n*A_split)),
+                      C1 = runif(as.integer(n*A_split), 0, 1),
+                      C2 = runif(as.integer(n*A_split), 0, 1))
+  
+  df_A1$C1 <- ifelse(df_A1$C1 >= C1_split, 1, 0)
+  df_A1$C2 <- ifelse(df_A1$C2 >= C2_split, 1, 0)
+  table(df_A1)
+  
+  # A=0
+  df_A0 <- data.frame(A = rep(0, as.integer(n*(1-A_split))),
+                      C1 = runif(as.integer(n*(1-A_split)), 0, 1),
+                      C2 = runif(as.integer(n*(1-A_split)), 0, 1))
+  
+  df_A0$C1 <- ifelse(df_A0$C1 >= (1-C1_split), 1, 0)
+  df_A0$C2 <- ifelse(df_A0$C2 >= (1-C2_split), 1, 0)
+  
+  # Concat
+  df <- rbind(df_A0, df_A1)
+  df$Error <- rnorm(n, 0, 0.25)
+  
+  df$Y <- B0 + (B1*df$A) + (B2*df$C1) + (B3*df$C2) + df$Error
+  return(df)
+}
+
+# Treatment A=1의 비율이 0.4, Treatment A=0의 비율이 0.6
+# C1, C2는 0과 1사이에서 랜덤 난수 발생
+# A=1일 때 C1은 0.2 이상이면 1, C2는 0.75 이상이면 1
+# A=0일 때 C1은 0.8 이상이면 1, C2는 0.25 이상이면 1
+# mean이 0이고 sd가 0.25인 랜덤 에러 추가
+# n은 5000
+
+n = 5000
+A_split = 0.3
+C1_split = 0.2
+C2_split= 0.75
+B0 = -5.23
+B1 = 1.56
+B2 = 3.56
+B3 = 0.87
+
+simdata <- simul_data(n, A_split, C1_split, C2_split, B0, B1, B2, B3)
+head(simdata)
+```
+Our Three Models:
+- 1. IPW via marginal structural model
+- 2. Standardization model
+- 3. Doubly robust estimation model
+
+<br><br>
+
+### 1-2. Fit 3 Models under both correct outcome model and marginal structural model. (T/T)
+```{r}
+library(geepack)
+library(drgee)
+
+# 1. IPW via marginal structural model
+fit_IPW_TT <- glm(A ~ as.factor(C1) + as.factor(C2), family=binomial(), data=simdata)
+fit_IPW_TT
+
+IPW_TT_p <- ifelse(simdata$A == 0, 1 - predict(fit_IPW_TT, type="response"),
+                  predict(fit_IPW_TT, type="response"))
+simdata$w = 1/IPW_TT_p
+fit_MSM_TT <- geeglm(Y ~ A + C1 + C2, data=simdata, weigh=w, id=c(1:nrow(simdata)))
+fit_MSM_TT
+fit_MSM_TT$coefficients[2]
+
+# 2. Standardization model
+simdata$interv <- -1 # 1st copy: equal to original one
+
+interv0 <- simdata # 2nd copy: A=0, Y=NA
+interv0$interv <- 0
+interv0$A <- 0
+interv0$Y <- NA
+
+interv1 <- simdata # 3rd copy: A=1, Y=NA
+interv1$interv <- 1
+interv1$A <- 1
+interv1$Y <- NA
+
+simdata4std <- rbind(simdata, interv0, interv1)
+
+fit_STD_TT <- glm(Y ~ A + C1 + C2, data=simdata4std)
+fit_STD_TT
+simdata4std$Yhat_STD_1 <- predict(fit_STD_TT, simdata4std)
+
+(ACE_STD_TT <- mean(simdata4std[which(simdata4std$interv==1),]$Yhat_STD_1) - mean(simdata4std[which(simdata4std$interv==0),]$Yhat_STD_1))
+
+# 3. Doubly robust estimation model
+
+# eformula: exposure nuisance model
+# oformula: outcome nuisance model
+simdata$R <- ifelse(simdata$A == 1, simdata$w, -simdata$w)
+
+fit_DR_TT <- geeglm(Y ~ A + C1 + C2 + R, data=simdata, id=c(1:nrow(simdata))) #weigh=w,
+fit_DR_TT
+fit_DR_TT$coefficients[2]
+
+# Doubly Robust 방법은 세 함수 모두 잘 안돼서 수업 시간 방법으로 수행
+
+# drgee::drgee(oformula=formula(Y~as.factor(A)+as.factor(C1)+as.factor(C2)+R), eformula=formula(as.factor(A)~as.factor(C1)+as.factor(C2)), iaformula = formula(~as.factor(C1)+as.factor(C2)), olink = "identity", elink="logit", estimation.method="dr", clusterid=simdata$Cluster, data=simdata)
+
+#wgeesel::drgee(A~C1+C2, formula(Y ~ A+C1+C2+R), data=simdata, id=c(1:nrow(simdata)), family="binomial", corstr = "exchangeable")
+
+#CRTgeeDR::geeDREstimation(formula=Y~A+C1+C2, id="Cluster", data = simdata, family = "binomial", corstr = "independence", model.weights=A~C1+C2, model.augmentation.trt=Y~C1+C2,model.augmentation.ctrl=Y~C1+C2, stepwise.augmentation=FALSE)
+```
+<br><br>
+
+### 1-3. Fit 3 Models under correct outcome model and incorrect marginal structural model(without C2). (T/F)
+```{r}
+# C2를 제외
+
+# 1. IPW via marginal structural model
+fit_IPW_TF <- glm(A ~ as.factor(C1), family=binomial(), data=simdata)
+fit_IPW_TF
+
+IPW_TF_p <- ifelse(simdata$A == 0, 1 - predict(fit_IPW_TF, type="response"),
+                  predict(fit_IPW_TF, type="response"))
+simdata$w = 1/IPW_TF_p
+fit_MSM_TF <- geeglm(Y ~ A + C1 + C2, data=simdata, weigh=w, id=c(1:nrow(simdata)))
+fit_MSM_TF
+fit_MSM_TF$coefficients[2]
+
+# 2. Standardization model
+simdata$interv <- -1 # 1st copy: equal to original one
+
+interv0 <- simdata # 2nd copy: A=0, Y=NA
+interv0$interv <- 0
+interv0$A <- 0
+interv0$Y <- NA
+
+interv1 <- simdata # 3rd copy: A=1, Y=NA
+interv1$interv <- 1
+interv1$A <- 1
+interv1$Y <- NA
+
+simdata4std <- rbind(simdata, interv0, interv1)
+
+fit_STD_TF <- glm(Y ~ A + C1 + C2, data=simdata4std)
+fit_STD_TF
+simdata4std$Yhat_STD_2 <- predict(fit_STD_TF, simdata4std)
+
+(ACE_STD_TF <- mean(simdata4std[which(simdata4std$interv==1),]$Yhat_STD_2) - mean(simdata4std[which(simdata4std$interv==0),]$Yhat_STD_2))
+# 사실상 같은 결과?
+
+# 3. Doubly robust estimation model
+
+simdata$R <- ifelse(simdata$A == 1, simdata$w, -simdata$w)
+
+fit_DR_TF <- geeglm(Y ~ A + C1 + C2 + R, data=simdata, id=c(1:nrow(simdata))) #weigh=w,
+fit_DR_TF
+fit_DR_TF$coefficients[2]
+```
+<br><br>
+
+### 1-4. Fit 3 Models under incorrect outcome model(without C1) and correct marginal structural model. (F/T)
+```{r}
+# C1을 제외
+
+# 1. IPW via marginal structural model
+fit_IPW_FT <- glm(A ~ as.factor(C1)+as.factor(C2), family=binomial(), data=simdata)
+fit_IPW_FT
+
+IPW_FT_p <- ifelse(simdata$A == 0, 1 - predict(fit_IPW_FT, type="response"),
+                  predict(fit_IPW_FT, type="response"))
+simdata$w = 1/IPW_FT_p
+fit_MSM_FT <- geeglm(Y ~ A + C2, data=simdata, weigh=w, id=c(1:nrow(simdata)))
+fit_MSM_FT
+fit_MSM_FT$coefficients[2]
+
+# 2. Standardization model
+simdata$interv <- -1 # 1st copy: equal to original one
+
+interv0 <- simdata # 2nd copy: A=0, Y=NA
+interv0$interv <- 0
+interv0$A <- 0
+interv0$Y <- NA
+
+interv1 <- simdata # 3rd copy: A=1, Y=NA
+interv1$interv <- 1
+interv1$A <- 1
+interv1$Y <- NA
+
+simdata4std <- rbind(simdata, interv0, interv1)
+
+fit_STD_FT <- glm(Y ~ A + C2, data=simdata4std)
+fit_STD_FT
+simdata4std$Yhat_STD_3 <- predict(fit_STD_FT, simdata4std)
+
+(ACE_STD_FT <- mean(simdata4std[which(simdata4std$interv==1),]$Yhat_STD_3) - mean(simdata4std[which(simdata4std$interv==0),]$Yhat_STD_3))
+
+# 3. Doubly robust estimation model
+
+simdata$R <- ifelse(simdata$A == 1, simdata$w, -simdata$w)
+
+fit_DR_FT <- geeglm(Y ~ A + C1 + C2 + R, data=simdata, id=c(1:nrow(simdata))) #weigh=w,
+fit_DR_FT
+fit_DR_FT$coefficients[2]
+```
+<br><br>
+
+### 1-5. Fit 3 Models under both incorrect outcome(without C1) model and marginal structural model(without C2). (F/F)
+```{r}
+# 1. IPW via marginal structural model
+fit_IPW_FF <- glm(A ~ as.factor(C1), family=binomial(), data=simdata)
+fit_IPW_FF
+
+IPW_FF_p <- ifelse(simdata$A == 0, 1 - predict(fit_IPW_FF, type="response"),
+                  predict(fit_IPW_FF, type="response"))
+simdata$w = 1/IPW_FF_p
+fit_MSM_FF <- geeglm(Y ~ A + C2, data=simdata, weigh=w, id=c(1:nrow(simdata)))
+fit_MSM_FF
+fit_MSM_FF$coefficients[2]
+
+# 2. Standardization model
+simdata$interv <- -1 # 1st copy: equal to original one
+
+interv0 <- simdata # 2nd copy: A=0, Y=NA
+interv0$interv <- 0
+interv0$A <- 0
+interv0$Y <- NA
+
+interv1 <- simdata # 3rd copy: A=1, Y=NA
+interv1$interv <- 1
+interv1$A <- 1
+interv1$Y <- NA
+
+simdata4std <- rbind(simdata, interv0, interv1)
+
+fit_STD_FF <- glm(Y ~ A + C2, data=simdata4std)
+fit_STD_FF
+simdata4std$Yhat_STD_4 <- predict(fit_STD_FF, simdata4std)
+
+(ACE_STD_FF <- mean(simdata4std[which(simdata4std$interv==1),]$Yhat_STD_4) - mean(simdata4std[which(simdata4std$interv==0),]$Yhat_STD_4))
+
+# 3. Doubly robust estimation model
+
+simdata$R <- ifelse(simdata$A == 1, simdata$w, -simdata$w)
+
+fit_DR_FF <- geeglm(Y ~ A + C1 + C2 + R, data=simdata, id=c(1:nrow(simdata))) #weigh=w,
+fit_DR_FF
+fit_DR_FF$coefficients[2]
+```
+<br><br>
+
+### 1-6. Compare the results
+```{r}
+library(kableExtra)
+
+df <- data.frame(Method=c("IPW via MSM", "Standardization", "Doubly robust Estimation"),
+                 True_ACE = c(B1, B1, B1),
+                 TT = round(c(fit_MSM_TT$coefficients[2], ACE_STD_TT, fit_DR_TT$coefficients[2]),4),
+                 TF = round(c(fit_MSM_TF$coefficients[2], ACE_STD_TF, fit_DR_TF$coefficients[2]),4),
+                 FT = round(c(fit_MSM_FT$coefficients[2], ACE_STD_FT, fit_DR_FT$coefficients[2]),4),
+                 FF = round(c(fit_MSM_FF$coefficients[2], ACE_STD_FF, fit_DR_FF$coefficients[2]),4))
+kable(df, align = "c") %>% kable_styling(full_width=F)
+```
+IPW의 경우 (Treatment 모델이 틀린 경우에 비해) Outcome 모델이 틀릴 경우 ACE의 추정이 조금 더 벗어나게 되고, Standardization의 경우 마찬가지로 (Treatment 모델이 틀린 경우에 비해) Outcome 모델이 틀릴 경우 ACE의 추정이 조금 더 벗어나게 된다. 하지만 Doubly robust Estimate할 경우 Treatment 모델이나 Outcome 모델이 틀려도 ACE가 강건한 편이며 둘 다 틀렸을 때도 실제 값과 비슷하다. 그리고 어떠한 Case든 Doubly robust 방법이 가장 실제값과 가깝다. (다만, simulation에서 n이 작아지면 Doubly robust 추정치 역시 ACE에서 벗어나기도 한다.)
+
+[참고자료]
+https://towardsdatascience.com/doubly-robust-estimators-for-causal-inference-in-statistical-estimation-3c00847e9db
+<br><br><br><br>
+
+## 2. Show Closed form on p73~75
