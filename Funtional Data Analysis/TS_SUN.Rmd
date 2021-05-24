@@ -10,6 +10,7 @@ knitr::opts_chunk$set(echo = TRUE, fig.align = "center", message=F, warning=F)
 
 library(ftsa)
 library(ggplot2)
+library(kableExtra)
 ```
 
 * COVID19 - 480일 2020.01.22부터 2021.05.15까지 일별 확진자
@@ -43,7 +44,7 @@ h1n1$Date <- as.Date(h1n1$Date, "%Y.%m.%d")
 write.csv(covid_, '../Data/COVID19_.csv', row.names = FALSE)
 ```
 
-# Make fts Object / 20 days
+# Make fts Object
 - https://stackoverflow.com/questions/39507618/creating-fts-object-in-r
 ```{r}
 covid <- read.csv('../Data/COVID19_.csv')
@@ -86,11 +87,26 @@ FtsObjectPlot2 <- function(covid_fts, country, days, nc){
     ggtitle(paste(country, "/ Predict daily new confirmed cases in", days, "days")) + theme(plot.title = element_text(hjust=0.5, size=12, face="bold"))
 }
 
-# 왜 sd가 거꾸로 나오는지?
-# ets, arima 등 일반 시계열에서 ets, arima 방법처럼 사용해도 되는건지
+FtsObjectPlot3<- function(covid_fts, country, days, nc, stationary, method, order, lambda){
+  covid_fts_pre <- forecast(ftsm(covid_fts, order = order, lambda = lambda), h = 1, stationary=stationary, method = method) # method = "ets", 'order' is number of principle componenets
+  df <- data.frame(X = seq(nc*days + days*1),
+                 Y = as.numeric(covid[covid$Country == country, 2:(nc*days+days*1+1)]),
+                 Yhat = c(rep(NA, nc*days-1), covid[covid$Country == country, (nc*days+1)], as.vector(covid_fts_pre$mean$y)),
+                 Lower = c(rep(NA, nc*days), as.vector(covid_fts_pre$lower$y)),
+                 Upper = c(rep(NA, nc*days), as.vector(covid_fts_pre$upper$y)))
+
+  p <- ggplot(df) + geom_errorbar(aes(x=X, y=Yhat, ymin=Lower,ymax=Upper),color='pink', alpha=0.5, position="dodge",width=0.2) +
+    geom_line(aes(x=X, y=Y), color='darkgrey') + geom_line(aes(x=X, y=Yhat), color='red') + theme_bw() + 
+    ggtitle(paste(country, "/ Predict daily new confirmed cases in", days, "days")) + theme(plot.title = element_text(hjust=0.5, size=12, face="bold"))
+  
+  mae <- mean(abs(as.numeric(covid[covid$Country == country,(nc*days+2):((nc+1)*days+1)]) - as.vector(covid_fts_pre$mean$y)))
+  
+  print(p)
+  return(mae)
+}
 ```
 
-# Make fts Object / 14 days
+# Make fts Object / Covid19 / 14 days
 ```{r}
 days <- 14
 total <- ncol(covid) - days*1 - 1
@@ -100,24 +116,29 @@ country <- 'China'
 covid_fts <- MakeFtsObject(country, days)
 FtsObjectPlot1(covid_fts, country, days, 0.95, 1.05)
 FtsObjectPlot2(covid_fts, country, days, nc)
+FtsObjectPlot3(covid_fts, country, days, nc, FALSE, 'arima', 3, 5)
+# stationary=FALSE, method = "arima"
 
 country <- 'US' # 먼가 모델이 잘못됬나봄
 covid_fts <- MakeFtsObject(country, days)
 FtsObjectPlot1(covid_fts, country, days, 0.5, 1.05)
 FtsObjectPlot2(covid_fts, country, days, nc)
+FtsObjectPlot3(covid_fts, country, days, nc, FALSE, 'arima', 3, 3)
 
 country <- 'Korea, South'
 covid_fts <- MakeFtsObject(country, days)
 FtsObjectPlot1(covid_fts, country, days, 0.95, 1.15)
 FtsObjectPlot2(covid_fts, country, days, nc)
+FtsObjectPlot3(covid_fts, country, days, nc, FALSE, 'arima', 3, 5)
 
 country <- 'New Zealand'
 covid_fts <- MakeFtsObject(country, days)
 FtsObjectPlot1(covid_fts, country, days, 0.95, 1.05)
 FtsObjectPlot2(covid_fts, country, days, nc)
+FtsObjectPlot3(covid_fts, country, days, nc, FALSE, 'ets', 3, 10)
 ```
 
-# Make fts Object / 30 days
+# Make fts Object / Covid / 30 days
 ```{r}
 days <- 30
 total <- ncol(covid) - days*1 - 1
@@ -127,26 +148,39 @@ country <- 'China'
 covid_fts <- MakeFtsObject(country, days)
 FtsObjectPlot1(covid_fts, country, days, 0.95, 1.05)
 FtsObjectPlot2(covid_fts, country, days, nc)
+china_mae_30 <- FtsObjectPlot3(covid_fts, country, days, nc, FALSE, 'ets', 3, 5)
 
 country <- 'US'
 covid_fts <- MakeFtsObject(country, days)
 FtsObjectPlot1(covid_fts, country, days, 0.5, 1.05)
 FtsObjectPlot2(covid_fts, country, days, nc)
+us_mae_30 <- FtsObjectPlot3(covid_fts, country, days, nc, FALSE, 'ets', 2, 5)
 
 country <- 'Korea, South'
 covid_fts <- MakeFtsObject(country, days)
 FtsObjectPlot1(covid_fts, country, days, 0.95, 1.15)
 FtsObjectPlot2(covid_fts, country, days, nc)
+korea_mae_30 <- FtsObjectPlot3(covid_fts, country, days, nc, FALSE, 'arima', 3, 5)
 
-country <- 'New Zealand'
+country <- 'Australia' # 'New Zealand'
 covid_fts <- MakeFtsObject(country, days)
 FtsObjectPlot1(covid_fts, country, days, 0.95, 1.05)
 FtsObjectPlot2(covid_fts, country, days, nc)
-```
-오히려 장기 예측이 강한가? 패턴을 알기 좋다!
+nz_mae_30 <- FtsObjectPlot3(covid_fts, country, days, nc, FALSE, 'arima', 4, 5)
 
-# Make fts Object / 60 days
-```{r}
+# MSE 비교
+df_30 <- data.frame(country = c('China', 'US', 'Korea', 'Australia'),
+           stationary = c('FALSE', 'FALSE', 'FALSE', 'FALSE'),
+           number_of_PC = c(3, 2, 3, 4),
+           lambda = c(5, 5, 5, 5),
+           MAE = round(c(china_mae_30, us_mae_30, korea_mae_30, nz_mae_30),1))
+
+kable(df_30, align = "c") %>% kable_styling(full_width=F)
+# https://cran.r-project.org/web/packages/kableExtra/vignettes/awesome_table_in_html.html
+```
+
+# Make fts Object / 60 days - 포기
+```{r eval=FALSE}
 days <- 60
 total <- ncol(covid) - days*1 - 1
 nc <- as.numeric(total%/%days)
@@ -171,37 +205,14 @@ covid_fts <- MakeFtsObject(country, days)
 FtsObjectPlot1(covid_fts, country, days, 0.95, 1.05)
 FtsObjectPlot2(covid_fts, country, days, nc)
 ```
-약간 편차가 크다..? order를 높여야하나?
-잘 예측되는지는 MSE 구해야되나?
 
-우리나라를 잘 맞춤.. 뭐지.. 왜지.. 정상성, 모델의 문제?
-
-# Make fts Object / 90 days
+## Clustering
 ```{r}
-days <- 90
-total <- ncol(covid) - days*1 - 1
-nc <- as.numeric(total%/%days)
+data(sim_ex_cluster)
+cluster_result<-mftsc(X=sim_ex_cluster, alpha=0.99)
+cluster_result$member.final
 
-country <- 'China'
-covid_fts <- MakeFtsObject(country, days)
-FtsObjectPlot1(covid_fts, country, days, 0.95, 1.05)
-FtsObjectPlot2(covid_fts, country, days, nc)
+length(sim_ex_cluster)
 
-country <- 'US'
-covid_fts <- MakeFtsObject(country, days)
-FtsObjectPlot1(covid_fts, country, days, 0.5, 1.05)
-FtsObjectPlot2(covid_fts, country, days, nc)
-
-country <- 'Korea, South'
-covid_fts <- MakeFtsObject(country, days)
-FtsObjectPlot1(covid_fts, country, days, 0.95, 1.15)
-FtsObjectPlot2(covid_fts, country, days, nc)
-
-country <- 'New Zealand'
-covid_fts <- MakeFtsObject(country, days)
-FtsObjectPlot1(covid_fts, country, days, 0.95, 1.05)
-FtsObjectPlot2(covid_fts, country, days, nc)
 ```
 
-아! 90을 보니.. 지금 functional 은 일종의 패턴을 예측? 하는 느낌. 곡선을 예측
-그래서 yhat1을 원 데이터의 위치에 맞추던가, 아니면 머 평균 가장 작게하는 위치에 맞추던가 해야될듯, y의 평행이동이 필요해보이고, 다음날 정확한 값 예측?이건 절대불가능이고 패턴 예측에 도움이 될듯.
