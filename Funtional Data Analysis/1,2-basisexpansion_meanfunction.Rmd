@@ -1,0 +1,152 @@
+---
+title: "1-meanfunction"
+author: "SUNMI JU"
+date: "5/26/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+setwd('/Users/clue7/desktop/EWHAG/2021-1/자료분석특론1/PROJECT/Data')
+covid <- read.csv('../Data/COVID19_con.csv')
+sars <- read.csv('../Data/SARS_con.csv')
+h1n1 <- read.csv('../Data/H1N1_con.csv')
+mers <- read.csv('../Data/MERS.csv')
+COUNTRY <- read.table('../Data/COUNTRY.txt',sep=',',header=T)
+
+```
+
+```{r}
+library(fda)
+library(refund)
+library(ggplot2)
+library(dplyr)
+
+covid <- read.csv('../Data/COVID19_.csv')
+covid_ <- t(covid[2:ncol(covid)])
+colnames(covid_) <- covid$Country
+
+# make fd
+grid = round(seq(0,480,length=dim(covid_)[1]))
+bspline_basis <- create.bspline.basis(c(0,480), nbasis=21, norder=4) # cubic spline
+bspline_far <- fdPar(bspline_basis, Lfdobj=2, lambda=1) # lambda가 클수록 패널티텀의 중요도가 높아 smooth해짐
+fdobj <- smooth.basis(grid, covid_, bspline_far, fdnames=list('Days', 'Country', 'NewCases'))$fd
+
+library(reshape)
+plot(fdobj)
+
+# Original Data
+covid_m <- melt(covid, id=c("Country"))
+covid_m$Date <- as.Date(gsub("X", "", covid_m$variable), "%Y.%m.%d")
+ggplot(covid_m) + geom_line(aes(x = Date, y=value, color=Country), show.legend = FALSE) + theme_bw() 
+
+
+# Mean Function
+plot(fdobj,col='gray'); plot(mean.fd(fdobj),lwd=3,add=TRUE, col='red')
+```
+
+
+```{r}
+sars <- read.csv('../Data/SARS_con.csv')
+h1n1 <- read.csv('../Data/H1N1_con.csv')
+mers <- read.csv('../Data/MERS.csv')
+COUNTRY <- read.table('../Data/COUNTRY.txt',sep=',',header=T)
+
+preprocessing <- function(data){
+  df <- data[c(1,2,3)]
+  colnames(df) = c('Date','Country','Cumulative_Cases')
+  temp<-df %>% group_by(Date,Country) %>% summarise(Cumulative_Cases=sum(Cumulative_Cases))
+  temp = data.frame(temp)
+  temp = temp[order(temp[,1]),]
+  
+  Y = reshape(temp,idvar = "Date", timevar = "Country", direction = "wide")
+  Y = subset(Y, select = -c(Date))
+  
+  for(i in 1:length(names(Y))){
+    names(Y)[i] = sub(".*\\.", "", names(Y)[i])
+  }
+  
+  X=left_join(data.frame('Country'=names(Y)),COUNTRY,by='Country')$'Continent'
+  Y[is.na(Y)]<-0
+  Y<-sapply(Y, as.numeric)
+  
+  Y = Y[,!is.na(X)]
+  X = X[!is.na(X)]
+  
+  return(list(x=X,y=Y))
+}
+
+regression<-function(X,Y){
+  days = dim(Y)[1]
+  grid = round(seq(0,days,length=days))
+  mybasis<-create.bspline.basis(rangeval=c(0,days), nbasis=21, norder=4)
+  bspline_far <- fdPar(mybasis, Lfdobj=2, lambda=1)
+  Y.fd <- smooth.basis(grid,Y,bspline_far)$fd
+  # plot(Y.fd)
+  plot(Y.fd,col='gray'); plot(mean.fd(Y.fd),lwd=3,add=TRUE, col='red')
+  X.design = cbind(1,model.matrix(~factor(X)-1))
+  constraints = matrix(c(0,rep(1,dim(X.design)[2]-1)),1)
+  forsr.fit<-fosr(fdobj = Y.fd, X=X.design, con=constraints, method='GLS')
+  # plot(forsr.fit,split=1,set.mfrow=c(1,7),
+  #      titles=c("GLS:Intercept",levels(factor(X))),
+  #      ylab ='',xlab='Day')
+}
+
+
+# make fd
+grid = round(seq(0,50))
+bspline_basis <- create.bspline.basis(c(0,50), nbasis=21, norder=4) # cubic spline
+bspline_far <- fdPar(bspline_basis, Lfdobj=2, lambda=1) # lambda가 클수록 패널티텀의 중요도가 높아 smooth해짐
+fdobj <- smooth.basis(grid, h1n1, bspline_far, fdnames=list('Days', 'Country', 'NewCases'))$fd
+
+library(reshape)
+plot(fdobj)
+
+# Original Data
+covid_m <- melt(covid, id=c("Country"))
+covid_m$Date <- as.Date(gsub("X", "", covid_m$variable), "%Y.%m.%d")
+ggplot(covid_m) + geom_line(aes(x = Date, y=value, color=Country), show.legend = FALSE) + theme_bw() 
+
+
+# Mean Function
+plot(fdobj,col='gray'); plot(mean.fd(fdobj),lwd=3,add=TRUE, col='red')
+```
+
+### H1N1 ###
+```{r}
+preprocessed_h1n1<-preprocessing(h1n1)
+h1n1_X = preprocessed_h1n1$x
+h1n1_Y = preprocessed_h1n1$y
+regression(h1n1_X,h1n1_Y)
+
+grid = round(seq(0,50))
+bspline_basis <- create.bspline.basis(c(0,50), nbasis=21, norder=4) # cubic spline
+bspline_far <- fdPar(bspline_basis, Lfdobj=2, lambda=1) # lambda가 클수록 패널티텀의 중요도가 높아 smooth해짐
+fdobj <- smooth.basis(grid, h1n1_Y, bspline_far, fdnames=list('Days', 'Country', 'NewCases'))$fd
+
+h1n1$Date <- as.Date(h1n1$Date, "%Y-%m-%d")
+h1n1
+
+# Original Data
+ggplot(h1n1) + geom_line(aes(x = Date, y=Cumulative.no..of.cases, color=Country), show.legend = FALSE) + theme_bw() 
+
+
+```
+
+
+### SARS ###
+```{r}
+preprocessed_sars<-preprocessing(sars)
+sars_X = preprocessed_sars$x
+sars_Y = preprocessed_sars$y
+regression(sars_X,sars_Y)
+
+sars$Date <- as.Date(sars$Date, "%Y-%m-%d")
+sars
+
+# Original Data
+ggplot(sars) + geom_line(aes(x = Date, y=Cumulative.number.of.case.s., color=Country), show.legend = FALSE) + theme_bw() 
+```
