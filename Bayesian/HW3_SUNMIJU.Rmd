@@ -1,0 +1,325 @@
+---
+title: "HW3_SUNMIJU"
+output: word_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = "center", message=F, warning=F) 
+```
+
+## 실습 예제를 위한 기본 코드
+### 1) 입력 및 준비단계
+* a) 데이터와 사전모수 입력
+```{r}
+mu0 <- 10; sigsq0 <- 25; a <- 0.5; b <- 1
+x <- c(10, 13, 15, 11, 9, 18, 20, 17, 23, 21)
+dataList = list(x=x, mu0=mu0, sigsq0=sigsq0, a=a, b=b)
+```
+
+
+* b) 사후밀도함수의 커널을 계산하는 함수
+우도함수와 사전밀도함수의 곱에 비례, 상수항은 무시하고 함수 부분만 계산
+```{r}
+post.normal_mu_sigsq = function(theta, dataList){
+  # retrieve data from dataList #
+  x = dataList$x
+  mu0 = dataList$mu0
+  sigsq0 = dataList$sigsq0
+  a = dataList$a
+  b = dataList$b
+  
+  mu = theta[1]; sigsq = theta[2]
+  f = exp(-0.5*length(x)*log(sigsq)-0.5*sum((x-mu)^2)/sigsq 
+          -0.5*(mu-mu0)^2/sigsq0-(a+1)*log(sigsq)-b/sigsq)
+  return(f)
+}
+```
+
+
+
+### 2) MCMC 표본추출함수 작성
+* with Thining
+```{r}
+# Random Walk Metroplis Algorithm #
+Metropolis_normal_mu_sigsq_thin = function(nsim, nburn, nthin, delta, dataList, initsList){
+  # initial values of mu and log.sigsq
+  mu = initsList$mu
+  log.sigsq = log(initsList$sigsq)
+  theta.curr = c(mu, log.sigsq)
+  p = length(theta.curr)
+
+  # start itertations
+  para.samples = matrix(0, nsim, p)
+  for(iter in 1:(nsim*nthin+nburn)){
+    z = rnorm(p, 0, 1)
+    theta.prop = z*delta + theta.curr
+    mu.curr = theta.curr[1]
+    sigsq.curr = exp(theta.curr[2])
+
+    mu.prop = theta.prop[1]
+    sigsq.prop = exp(theta.prop[2])
+    
+    alpha = post.normal_mu_sigsq(c(mu.prop, sigsq.prop), dataList)/
+      post.normal_mu_sigsq(c(mu.curr, sigsq.curr), dataList)*
+      sigsq.prop/sigsq.curr
+    
+    if(runif(1) < alpha) {
+      theta.next <- theta.prop
+    }
+    else{
+      theta.next <- theta.curr
+    }
+    
+    theta.curr = theta.next
+    if(iter > nburn){
+      if(iter%%nthin==0){
+        para.samples[(iter-nburn)/nthin,] = c(theta.next[1], exp(theta.next[2]))
+      }
+    }
+  }
+  # End iterations
+  return(para.samples)
+}
+```
+
+
+### 3) 다중 체인 MCMC
+* Generate random initial values
+```{r}
+inits.random = function(x){
+  resampledX = sample(x, replace = T)
+  muInit = mean(resampledX)
+  sigsqInit = var(resampledX)
+  return(list(mu=muInit, sigsq=sigsqInit))
+}
+```
+
+* MCMC 수행
+```{r}
+nChains = 3
+nsim = 50000; nburn = 5000; # 20000, 5000
+p = 2 # number of parameters
+mcmc.samples = array(0, dim = c(nsim, p, nChains)) # array to same samples
+delta=3.5 # 경험적으로 찾은 적절한 delta 값
+
+for(ich in 1:nChains){
+  initsList = inits.random(x)
+  mcmc.samples[,,ich] = Metropolis_normal_mu_sigsq_thin(nsim, nburn, nthin=3, delta, dataList, initsList)
+}
+
+library(coda)
+Metro.draws = mcmc(mcmc.samples[,,1])
+accept.rate = 1-rejectionRate(Metro.draws)
+accept.rate
+
+mu.samples = mcmc.samples[,1,]
+sigsq.samples = mcmc.samples[,2,]
+```
+<br><br><br>
+
+## 실습 예제
+### 1) 4.2절의 알고리즘을 실행하여 theta=(Mu, log(sigma))의 대략적인 추정치와 분산 추정
+```{r}
+mcmc.samples.combined = rbind(mcmc.samples[,,1], mcmc.samples[,,2], mcmc.samples[,,3]) # 3개 chain
+para.hat = apply(mcmc.samples.combined, 2, mean)
+para.var = apply(mcmc.samples.combined, 2, var)
+para.hat # 모수 추정치
+para.var  # 모수 추정치의 분산
+```
+
+### 2) 추정된 분산에 2.4를 곱하여 delta1^2, delta2^2 값으로 정한다.
+```{r}
+delta.new = para.var*2.4
+delta.new
+```
+
+### 3) 4.2절의 알고리즘을 변형하여 N(theta, diag(delta1^2, delta2^))로부터 후보표본을 추출하는 랜덤워크 메트로폴리스 알고리즘을 코딩한다.
+```{r}
+library(mvtnorm)
+
+# Changed: Random Walk Metroplis Algorithm #
+Metropolis_normal_mu_sigsq_thin_diffdel = function(nsim, nburn, nthin, delta.new, dataList, initsList){
+  # initial values of mu and log.sigsq
+  mu = initsList$mu
+  log.sigsq = log(initsList$sigsq)
+  theta.curr = c(mu, log.sigsq)
+  p = length(theta.curr)
+
+  # start itertations
+  para.samples = matrix(0, nsim, p)
+  for(iter in 1:(nsim*nthin+nburn)){
+    # z = rnorm(p, 0, 1)
+    zxdelta = rmvnorm(1, mean=rep(0, p), diag(delta.new)) # z*delta
+    # theta.prop = z*delta.new + theta.curr
+    theta.prop = zxdelta + theta.curr
+    mu.curr = theta.curr[1]
+    sigsq.curr = exp(theta.curr[2])
+
+    mu.prop = theta.prop[1]
+    sigsq.prop = exp(theta.prop[2])
+    
+    alpha = post.normal_mu_sigsq(c(mu.prop, sigsq.prop), dataList)/
+      post.normal_mu_sigsq(c(mu.curr, sigsq.curr), dataList)*
+      sigsq.prop/sigsq.curr
+    
+    if(runif(1) < alpha) {
+      theta.next <- theta.prop
+    }
+    else{
+      theta.next <- theta.curr
+    }
+    
+    theta.curr = theta.next
+    if(iter > nburn){
+      if(iter%%nthin==0){
+        para.samples[(iter-nburn)/nthin,] = c(theta.next[1], exp(theta.next[2]))
+      }
+    }
+  }
+  # End iterations
+  return(para.samples)
+}
+```
+
+
+* MCMC 수행
+```{r}
+nChains = 3
+nsim = 50000; nburn = 5000; # 20000, 5000
+p = 2 # number of parameters
+mcmc.samples.d = array(0, dim = c(nsim, p, nChains)) # array to same samples
+
+for(ich in 1:nChains){
+  initsList = inits.random(x)
+  mcmc.samples.d[,,ich] = Metropolis_normal_mu_sigsq_thin_diffdel(nsim, nburn, nthin=3, delta.new, dataList, initsList)
+}
+
+Metro.draws.d = mcmc(mcmc.samples.d[,,1])
+accept.rate = 1-rejectionRate(Metro.draws.d)
+accept.rate
+```
+
+
+### 4) 랜덤워크 메트로폴리스를 짧게 수행한 후 경로그림과 후보표본의 채택확률을 계산하여 본다.
+### 5) 채택확률이 대략 24%가 되도록 delta^1, delta^2를 조정한다. (함께 경험적으로 수행한 결과)
+```{r}
+delta.new = c(2.48, 10)*2.4 # var: 2.478, 253.241
+delta.new
+
+nChains = 3
+nsim = 50000; nburn = 5000; # 20000, 5000
+p = 2 # number of parameters
+mcmc.samples.d = array(0, dim = c(nsim, p, nChains)) # array to same samples
+
+for(ich in 1:nChains){
+  initsList = inits.random(x)
+  mcmc.samples.d[,,ich] = Metropolis_normal_mu_sigsq_thin_diffdel(nsim, nburn, nthin=3, delta.new, dataList, initsList)
+}
+
+Metro.draws.d = mcmc(mcmc.samples.d[,,1])
+accept.rate = 1-rejectionRate(Metro.draws.d)
+accept.rate
+```
+
+
+
+* 경로그림과 사후밀도함수
+```{r}
+mu.samples.d = mcmc.samples.d[,1,]
+sigsq.samples.d = mcmc.samples.d[,2,]
+
+par(mfrow=c(1,2))
+plot(mu.samples.d[,1], type = 'l', xlab = 'iteration', ylab = quote(mu), main='Mu traceplot')
+lines(mu.samples.d[,2], col=2)
+lines(mu.samples.d[,3], col=3)
+
+plot(density(mu.samples.d[,1]), xlab = quote(mu), ylab='posterior density', main='Mu density plot')
+lines(density(mu.samples.d[,2]), col=2)
+lines(density(mu.samples.d[,3]), col=3)
+
+par(mfrow=c(1,2))
+plot(sigsq.samples.d[,1], type = 'l', xlab = 'iteration', ylab = quote(sigma^2), main = 'sigsq traceplot')
+lines(sigsq.samples.d[,2], col=2)
+lines(sigsq.samples.d[,3], col=3)
+
+plot(density(sigsq.samples.d[,1]), xlab = quote(sigma^2), ylab='posterior density', main='sigsq density plot')
+lines(density(sigsq.samples.d[,2]), col=2)
+lines(density(sigsq.samples.d[,3]), col=3)
+```
+
+
+* Gelman
+```{r}
+library(coda)
+samples.1 = mcmc(mcmc.samples.d[,,1])
+samples.2 = mcmc(mcmc.samples.d[,,2])
+samples.3 = mcmc(mcmc.samples.d[,,3])
+
+codaSamples = mcmc.list(list(samples.1, samples.2, samples.3))
+gelman = gelman.diag(codaSamples)
+gelman # 1에 가깝다, 적절
+```
+
+
+### 6) 최종 선택된 delta^1, delta^2를 사용하여 메트로폴리스를 충분히 길게 수행한 후 수렴속도, 효율, 사후추론 결과를 4.2절의 공통 분산을 사용하였을 경우와 비교하라.
+
+수렴 횟수를 50000으로 고정
+
+* gelman plot을 이용한 비교 (효율)
+```{r}
+# Same delta
+mu1.samples= mcmc(mu.samples[500:10000,])
+mu1.codaSamples = mcmc.list(list(mu1.samples[,1], mu1.samples[,2], mu1.samples[,3]))
+
+mu2.samples = mcmc(mu.samples[15000:30000,])
+mu2.codaSamples = mcmc.list(list(mu2.samples[,1], mu2.samples[,2], mu2.samples[,3]))
+
+gelman.plot(mu1.codaSamples, col=c("black", "blue"), main="Same Delta. iter: 500-10000")
+gelman.plot(mu2.codaSamples, col=c("black", "blue"), main="Same Delta. iter: 15000-30000")
+
+# Diff delta
+mu1.samples.d= mcmc(mu.samples.d[500:10000,])
+mu1.codaSamples.d = mcmc.list(list(mu1.samples.d[,1], mu1.samples.d[,2], mu1.samples.d[,3]))
+
+mu2.samples.d = mcmc(mu.samples.d[15000:30000,])
+mu2.codaSamples.d = mcmc.list(list(mu2.samples.d[,1], mu2.samples.d[,2], mu2.samples.d[,3]))
+
+gelman.plot(mu1.codaSamples.d, col=c("black", "blue"), main="Diff Delta. iter: 500-10000")
+gelman.plot(mu2.codaSamples.d, col=c("black", "blue"), main="Diff Delta. iter: 15000-30000")
+```
+
+* 베이지안 사후추론
+```{r}
+# Same Delta
+mcmc.samples.combined = rbind(mcmc.samples[,,1], mcmc.samples[,,2], mcmc.samples[,,3])
+HPD = apply(mcmc.samples.combined, 2, function(x) quantile(x, c(0.025,0.975)))
+
+# 95% HPD 사후밀도함수 구간
+par(mfrow=c(1,2))
+
+plot(density(mcmc.samples.combined[,1]), xlab=quote(mu), ylab='', main='95% HPD of Mu')
+abline(v=HPD[,1], lty=2, col=2)
+
+plot(density(mcmc.samples.combined[,2]), xlab=quote(sigma^2), ylab='', main='95% HPD of Sigma')
+abline(v=HPD[,2], lty=2, col=2)
+
+HPD
+
+# Diff Delta
+mcmc.samples.combined.d = rbind(mcmc.samples.d[,,1], mcmc.samples.d[,,2], mcmc.samples.d[,,3])
+HPD.d = apply(mcmc.samples.combined.d, 2, function(x) quantile(x, c(0.025,0.975)))
+
+# 95% HPD 사후밀도함수 구간
+par(mfrow=c(1,2))
+
+plot(density(mcmc.samples.combined.d[,1]), xlab=quote(mu), ylab='', main='95% HPD of Mu')
+abline(v=HPD.d[,1], lty=2, col=2)
+
+plot(density(mcmc.samples.combined.d[,2]), xlab=quote(sigma^2), ylab='', main='95% HPD of Sigma')
+abline(v=HPD.d[,2], lty=2, col=2)
+
+HPD.d
+```
+
+#### 결론: 이번 예제에서는 log(sigma^2)에 대응되는 delta^2가 너무 크기 때문에, 공통 delta를 3.5로 두고 MCMC를 수행한 것의 결과가 더 좋다.

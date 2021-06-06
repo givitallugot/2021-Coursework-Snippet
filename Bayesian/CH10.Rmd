@@ -1,0 +1,15 @@
+---
+title: "CH10"
+author: "SUNMI JU"
+date: "6/5/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = "center", message=F, warning=F) 
+```
+
+```{r}
+
+```
+
