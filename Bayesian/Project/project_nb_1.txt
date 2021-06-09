@@ -1,0 +1,14 @@
+
+  model{
+    for(i in 1:length(y)){
+      y[i] ~ dnegbin(P[i],r)
+      P[i] <- r/(r+lambda[i]) 
+      log(lambda[i]) <- inprod(X[i,], beta[])
+    }
+    ## Priors
+    for(i in 1:p){
+      beta[i] ~ dnorm(mu.beta[i], Tau.beta[i])
+    }
+    r ~ dunif(0,50)
+  }
+

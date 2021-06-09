@@ -1,0 +1,340 @@
+---
+title: "HW1 자료분석특론1"
+author: "SUNMI JU"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = "center", message=F, warning=F, fig.height = 4.5, fig.width = 6) 
+```
+
+## Problem: Chapter 1.1
+#### (a) Convert the pinch data to functional objects using 15 B-splines of order four (cubic splines) and plot the 20 smoothed curves on one graph
+```{r}
+library(fda)
+data(pinch)
+dim(pinch) # N = 20, 151 measurement
+
+library(reshape2)
+pinch2draw <- melt(pinch, id.vars=1:20)
+colnames(pinch2draw) <- c('Time', 'group', 'value')
+
+library(ggplot2)
+ggplot(data=pinch2draw) + geom_line(aes(Time, value, group=as.factor(group), col=as.factor(group))) + ggtitle('Pinch Data') + theme_light() + theme(legend.position = "none", plot.title = element_text(hjust=0.5, size=14, face="bold.italic")) 
+# 굉장히 관측치가 비슷함. 시작과 끝 값이 비슷하며, right skewed된 정규분포 꼴임.
+
+
+# 범위 찾기 (생략)
+# rngmn = 20; rngmx = -20
+# for(i in 1:20){
+#   if(rngmn > range(pinch[,i])[1]) rngmn = range(pinch[,i])[1]
+#   if(rngmx < range(pinch[,i])[2]) rngmx = range(pinch[,i])[2]
+# }
+# c(rngmn, rngmx)
+# obs <- seq(rngmn, rngmx,length=151)
+
+bspline_basis <- create.bspline.basis(c(1,151), nbasis=15, norder=4) # order 4 (cubic spline), c(rngmn, rngmx)
+pinch.F <- Data2fd(c(1:151),pinch,bspline_basis) # obs
+plot(pinch.F)
+```
+<br><br>
+
+#### (b) Calculate the pointwise mean and SD and add them to the plot.
+```{r}
+# Mean
+pinch.M <- mean.fd(pinch.F)
+
+# SD
+pinch.SD <- std.fd(pinch.F)
+
+# plot
+plot(pinch.F, col='grey')
+lines(pinch.M,lwd=2)
+lines(pinch.M+pinch.SD, lwd=1, lty=2, col="red")
+lines(pinch.M-pinch.SD, lwd=1, lty=2, col="red")
+lines(pinch.M+2*pinch.SD, lwd=1, lty=2, col="green")
+lines(pinch.M-2*pinch.SD, lwd=1, lty=2, col="green")
+lines(pinch.M+3*pinch.SD, lwd=1, lty=2, col="yellow")
+lines(pinch.M-3*pinch.SD, lwd=1, lty=2, col="yellow")
+```
+<br><br>
+
+#### (c) Graph the perspective and contour plots of the sample covariance function $\hat{c}$(t,s) of the pinch curves
+```{r}
+# Covariance
+library(plot3D)
+pinch.COV <- var.fd(pinch.F)
+pinch.Matrix = eval.bifd(c(1:151), c(1:151), pinch.COV) # pts=키 크는 시점, 이 부분이 추가
+
+par(mfrow=c(1,2))
+persp3D(c(1:151), c(1:151), pinch.Matrix, xlab = "s", ylab = "t", zlab = "c(t,s) hat")
+contour(c(1:151), c(1:151), pinch.Matrix, lwd=1)
+par(mfrow=c(1,1))
+```
+<br><br>
+
+#### (d) Graph the first four EFPC's of the pinch data. How many components do you need to explain 90% of variation?
+```{r}
+pinch.PCA <- pca.fd(pinch.F, nharm=4)
+plot(pinch.PCA$harmonics)
+
+barplot(cumsum(pinch.PCA$varprop), main="Proportion of Variance Explained")
+abline(h = 0.9, col='red', lty=2)
+round(cumsum(pinch.PCA$varprop),digits=3)*100
+```
+2개의 주성분으로 92.1%를 설명할 수 있다.
+<br><br><br><br>
+
+## Problem: Chapter 1.2
+#### (a) On one graph, plot the interest rates x(tj) for January 1982 and for June 2009 against the maturity terms tj. How do the interest rates in these two months compare?
+```{r}
+library(fds)
+data(FedYieldcurve)
+dim(FedYieldcurve$y) # N = 6(x-values: 만기 조건), 330 measurments
+yield = FedYieldcurve; terms = yield$x
+plot(c(1:6), yield$y[,1], pch=15,col='red', ylab="Yield", ylim=c(0,16), xlab="maturity terms", xaxt='n')
+points(c(1:6), yield$y[,330], pch=16, col='blue')
+axis(side=1, at=c(1:6), labels = terms)
+```
+1982 1월의 interest rates가 2009년 6월의 interest rates보다 훨씬 높다.
+<br><br>
+
+#### (b) Convert the yield data to functional objects using bspline basis with four basis functions. Calculate and plot the the mean yield function. What is the average behavior of interest rates as a function of the maturity?
+```{r}
+library(reshape2)
+FYcurve2draw <- melt(FedYieldcurve$y, id.vars=1:6)
+colnames(FYcurve2draw) <- c('Time', 'group', 'value')
+FYcurve2draw$NTime = ifelse(FYcurve2draw$Time == 3, 1, ifelse(FYcurve2draw$Time == 6, 2, ifelse(FYcurve2draw$Time == 12, 3, ifelse(FYcurve2draw$Time == 60, 4, ifelse(FYcurve2draw$Time == 84, 5, ifelse(FYcurve2draw$Time == 120, 6, 0))))))
+
+library(ggplot2)
+ggplot(data=FYcurve2draw) + geom_line(aes(NTime, value, group=as.factor(group)), col='dark grey')  + ggtitle('Federal Yield Curve') + theme_light() + theme(legend.position = "none", plot.title = element_text(hjust=0.5, size=14, face="bold.italic")) + scale_x_continuous("Time", breaks=c(1:6), label=c(3,6,12,60,84,120))
+
+# Basis Expansion with 4 basis
+bspline_basis <- create.bspline.basis(c(1,6), nbasis=4)
+FYcurve.F <- Data2fd(c(1:6),FedYieldcurve$y,bspline_basis)
+plot(FYcurve.F)
+
+FYcurve.M <- mean.fd(FYcurve.F)
+
+plot(FYcurve.F, col='grey', xlab="maturity terms", xaxt='n')
+lines(FYcurve.M,lwd=3)
+axis(side=1, at=c(1:6), labels = terms)
+```
+주로 만기 조건(Months)이 길수록 interest rates가 높아진다.
+<br><br>
+
+#### (c) Plot the first principal component of the interest rate curves. What percentage of variance does this component explain? Interpret the plot and the percentage of variance.
+```{r}
+FYcurve.PCA <- pca.fd(FYcurve.F, nharm=1)
+plot(FYcurve.PCA$harmonics[1], lwd=3)
+
+round(cumsum(FYcurve.PCA$varprop),digits=3)*100
+```
+첫 번째 주성분으로 99.4%가 설명됨
+<br><br><br><br>
+
+## Problem: Chapter 1.6
+
+Answers:
+
+* $a_{m}$ = $\overline{c_{n}}$ = $\frac{1}{N}\sum_n c_{nm}$
+<br><br>
+
+* $b_{mk}$ = $(\Sigma_{c})_{mk}$ : Covariance Matrix of Centered Coefficients <br><br> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; = $\frac{1}{N-1}(\tilde{c}^{T}\tilde{c})_{m,k}$ : Matrix Form  <br><br>   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; = $\frac{1}{N-1}\sum_n (c_{nm}-\overline{c_{m}})(c_{nk}-\overline{c_{k}})$
+
+<br><br><br><br>
+
+## Problem: Chapter 2.1
+
+Fourier basis: $x_{J}(t) = c_{0} + \sum_{j=1}^{J}[a_{j}\sin(wjt)+b_{j}\cos(wjt)]$
+The harmonic acceleration operator: $L(x)(t) = w^{2}x^{(1)}(t) + x^{(3)}(t), w = \frac{2π}{T}$
+
+Answers:
+<br>
+
+#### Step ①
+<br>
+
+* $\displaystyle \frac{\partial x_{J}}{\partial t} = x^{(1)}_{J}(t) = \sum_{j=1}^{J}[a_{j}wj\cos(wjt)-b_{j}wj\sin(wjt)]$
+
+* $\displaystyle \frac{\partial x_{J}}{\partial t^2} = x^{(2)}_{J}(t) = \sum_{j=1}^{J}[-a_{j}(wj)^{2}\sin(wjt)-b_{j}(wj)^{2}\cos(wjt)]$
+
+* $\displaystyle \frac{\partial x_{J}}{\partial t^3} = x^{(3)}_{J}(t) = \sum_{j=1}^{J}[-a_{j}(wj)^{3}\cos(wjt)+b_{j}(wj)^{3}\sin(wjt)]$
+<br>
+
+First and third derivates를 harmonic acceleration operator에 적용한다.
+<br>
+
+$L(x)(t) = \sum_{j=1}^{J}[a_{j}w^{3}j\cos(wjt)-b_{j}w^{3}j\sin(wjt)-a_{j}(wj)^{3}\cos(wjt)-b_{j}(wj)^{3}\sin(wjt)] = w^{3}\sum_{j=1}^{J}[a_{j}j(1-j^{2})\cos(wjt)+b_{j}j(j^{2}-1)\sin(wjt)]$
+<br><br><br><br>
+
+#### Step ②
+$[L(x)(t)]^{2} = w^{6}\sum_{j=1}^{J}[a{^2_j}j^{2}(1-j^{2})^{2}\cos^{2}(wjt)+2a_{j}b_{j}j^{2}(1-j^{2})(j^{2}-1)\cos(wjt)\sin^{2}(wjt)+b{^2_j}j^{2}(j^{2}-1)^{2}\sin^{2}(wjt)]$
+<br>
+
+By using   $\sin(2wjt) = 2\sin(wjt)\cos(wjt)$, $\sin^{2}(wjt) = (1-\cos(2wjt))/2$, $\cos^{2}(wjt) = (1-\cos(2wjt))/2$
+<br>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;$=w^{6}\sum_{j=1}^{J}[\frac{1}{2}a{^2_j}j^{2}(1-j^{2})^{2}(1+\cos(2wjt))+a_{j}b_{j}j^{2}(1-j^{2})(j^{2}-1)\sin(2wjt)+\frac{1}{2}b{^2_j}j^{2}(j^{2}-1)^{2}(1-\cos(2wjt))]$
+<br><br><br><br>
+
+#### Step ③
+$\int_{0}^{T} [L(x)(t)]^{2} \; dt] = w^{6}\sum_{j=1}^{J} \int_{0}^{T} \left[\frac{1}{2}a{^2_{j}}j^{2}(1-j^{2})^{2} + \frac{1}{2}b{^2_j}j^{2}(1-j^{2}) + \frac{1}{2}a{^2_j}j^{2}(1-j^{2})^{2}\cos(2wjt) + a_{j}b_{j}j^{2}(1-j^{2})(j^{2}-1)\sin(2wjt) - \frac{1}{2}b{^2_j}j^{2}(j^{2}-1)\cos(2wjt)\right] \; dt$
+<br>
+
+sin, cos이 붙어있는 뒤의 세 항은 적분하면 0으로 모두 사라진다. 이는 $x(T)=x(0)$ 이므로(fourier basis이므로 시작과 끝값이 같음) $sin(2wjT) = sin(sin2wj0) = 0$, $cos(2wjT) = cos(2wj0) = 1$ 이기 때문이다.
+<br><br>
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; $= w^{6}\sum_{j=1}^{J} \int_{0}^{T} \left[\frac{1}{2}j^{2}(1-j^{2})^{2}(a{^2_j}+b{^2_j}) \right] \; dt + 0 = w^{6}\sum_{j=1}^{J}\frac{1}{2}j^{2}(1-j^{2})^{2}(a{^2_j}+b{^2_j})T$
+<br><br>
+
+이때, $T=2π/w$ 이므로 정리하면 다음과 같은 2.2의 식을 만족하게 된다.
+<br>
+
+$\int_{0}^{T} [L(x)(t)]^{2} \; dt = πw^{5}\sum_{j=2}^{J}j^{2}(1-j^{2})^{2}(a{^2_j}+b{^2_j})$
+
+<br><br><br><br><br><br>
+
+## Problem: Chapter 2.2
+#### (a) Smooth the interest rates (yields) in January 1982 using a B–spline basis with four basis functions. Plot the raw and smoothed interest rates on one graph.
+```{r}
+# raw data
+FYcurve2draw1982J <- FYcurve2draw[FYcurve2draw$group == 1,]
+ggplot(data=FYcurve2draw1982J) + geom_line(aes(NTime, value))  + ggtitle('1982 January Federal Yield Curve') + theme_light() + theme(legend.position = "none", plot.title = element_text(hjust=0.5, size=14, face="bold.italic")) + scale_x_continuous("Time", breaks=c(1:6), label=c(3,6,12,60,84,120))
+
+
+# Basis Expansion with 4 basis
+bspline_basis <- create.bspline.basis(c(1,6), nbasis=4)
+FYcurve.F.1982J <- Data2fd(as.numeric(c(1:6)),FedYieldcurve$y[,1],bspline_basis)
+plot(c(1:6), FedYieldcurve$y[,1], pch=15, ylab="Yield", main="1982 January FYD functional", xaxt='n')
+lines(FYcurve.F.1982J, col='blue')
+axis(side=1, at=c(1:6), labels = terms)
+```
+<br><br>
+
+#### (b) Re–fit the January 1982 yields using a penalized smoothing based on six basis functions (as many as data points) with with the smoothing parameter λ=1 and the second derivative as the penalty operator. Add the smooth in red to the graph you obtained in part (a) and comment on the result.
+```{r}
+bspline_basis <- create.bspline.basis(c(1,6), nbasis=6)
+bspline_far <- fdPar(bspline_basis, Lfdobj=2, lambda=1) # lambda가 클수록 패널티텀의 중요도가 높아 smooth해짐
+FYcurve.F.pen.1982J <- smooth.basis(c(1:6), FedYieldcurve$y[,1], bspline_far)
+
+plot(FYcurve.F.1982J, col="blue", main = "Red: Penalized Smoothing / Blue: 4 B-spline Basis Smoothing",  xaxt='n')
+lines(FYcurve.F.pen.1982J, col="red")
+axis(side=1, at=c(1:6), labels = terms)
+# (a)에 비해 더 smooth함, lambda가 작아서 wiggly할 수 있지만 Lfdobj로 2nd derivative까지 이용하도록 하여 smooth함.
+```
+<br><br>
+
+#### (c) Repeat part (b) with several other smoothing parameters λ. Which λ gives the most informative smooth curve?
+```{r}
+FYcurve.F.pen.1982J.0.5 <- smooth.basis(c(1:6), FedYieldcurve$y[,1], fdPar(bspline_basis, Lfdobj=2, lambda=0.5))
+FYcurve.F.pen.1982J.2 <- smooth.basis(c(1:6), FedYieldcurve$y[,1], fdPar(bspline_basis, Lfdobj=2, lambda=2))
+FYcurve.F.pen.1982J.5 <- smooth.basis(c(1:6), FedYieldcurve$y[,1], fdPar(bspline_basis, Lfdobj=2, lambda=5))
+
+par(mfrow=c(2,2))
+plot(FYcurve.F.pen.1982J.0.5, main="λ=0.5", xaxt='n') # lambda가 작아지면서 wiggly
+axis(side=1, at=c(1:6), labels = terms)
+plot(FYcurve.F.pen.1982J, main="λ=1", xaxt='n') # 데이터와 가장 비슷
+axis(side=1, at=c(1:6), labels = terms)
+plot(FYcurve.F.pen.1982J.2, main="λ=2", xaxt='n') # 
+axis(side=1, at=c(1:6), labels = terms)
+plot(FYcurve.F.pen.1982J.5, main="λ=5", xaxt='n') #
+axis(side=1, at=c(1:6), labels = terms)
+```
+λ=1이 가장 적절해보인다. λ가 커질수록 점점 더 smooth하여 직선에 가까워진다.
+<br><br><br><br>
+
+
+## Problem: Chapter 2.5
+#### (a) Simulate a functional sample over the unit interval each with a sam- ple size of 50 from the Mat ́ern process. For the first half of the sample, set the mean function equal to the the bump function with parameters (c0, r0, a0) = (3/8, 1/4, 5). For the second half use (c0, r0, a0) = (5/8, 1/4, 5). You may choose the values for the Mat ́ern covariance function as well as the number of points sampled per curve. Plot all of the curves and include a curve for the overall mean function.
+```{r}
+par(mfrow=c(1,1))
+
+f1 <- function(x){
+      c = 3/8; r = 1/4; a = 5
+      result = rep(0,length(x))
+      ind = which( abs(x - c) < r )
+      result[ind] = a*exp(   ( 1-((x[ind]-c)/r)^2 )^(-1)   )
+      return(result)
+}
+
+f2 <- function(x){
+      c = 5/8; r = 1/4; a = 5
+      result = rep(0,length(x))
+      ind = which( abs(x - c) < r )
+      result[ind] = a*exp(   ( 1-((x[ind]-c)/r)^2 )^(-1)   )
+      return(result)
+}
+
+m <- 20; times <- seq(0,1,length = m)
+
+library(fields)
+library(expm)
+Simul_matern <- function(ind){
+                # matern process parameter
+                range <- 1; nu <- 1; sig2 <- 1
+
+                d_mat <- abs(outer(times,times,"-"))
+                
+                # Matern(.5,range=range,nu=nu)
+                C <- apply(d_mat,c(1,2),FUN=Matern,range=range,nu=nu)
+                C <- C*sig2;C_sq <- sqrtm(C);Z <- rnorm(m)
+
+                if( ind == 1 ){ X <- C_sq%*%Z + f1(times) }else{ X <- C_sq%*%Z + f2(times) }
+                return(X)
+}
+
+N <- 50
+Data <- matrix(0,20,N) # observed for 20 time points and N functional samples
+for(i in 1:25){ Data[,i] <- Simul_matern(1) }
+for(i in 26:50 ){ Data[,i] <- Simul_matern(2) }
+
+
+# Raw Data
+plot(Data[,2], type='l', main="One Example from Simul Data")
+Data2draw <- data.frame(simul = as.vector(Data), group = sort(rep(c(1:20), 50)), Time = rep(c(1:20), 50), fun = sort(rep(c(1:2), 25*20)))
+
+ggplot(data=Data2draw) + geom_line(aes(Time, simul, group=as.factor(group), col=as.factor(fun)))  + ggtitle('50 Matern Process Samples from Two Mean Function') + theme_light() + theme(legend.position = "none", plot.title = element_text(hjust=0.5, size=14, face="bold.italic"))
+
+# Functional Data
+my_basis <- create.bspline.basis(c(0,1),nbasis=6)
+Data.F <- Data2fd(times, Data, my_basis)
+Data.mu <- mean.fd(Data.F)
+plot(Data.F, col="grey"); plot(Data.mu,lwd=4,add=TRUE)
+```
+<br><br>
+
+#### (b) Align the curves using continuous registration. Plot the resulting curves and include a mean function. Comment on any differences with (a) and if the registered curves exhibit any odd patterns.
+```{r}
+Data.FD <- smooth.basis(times, Data, my_basis)$fd
+Data.F.Align <- try(register.fd(Data.FD),silent=TRUE)$regfd
+plot(Data.F.Align, main="Aligned",col='gray'); plot(mean.fd(Data.mu),add=TRUE,lwd=3)
+```
+사실 중심 이동만 한 두 bump function을 이용했으므로 겹쳐야하지만, 겹쳐지지 않는다. 또한 (a)에서는 큰 봉우리와 작은 봉우리가 각각 있었지만 alignment 이후 사라지게 된다. 이 예제에서 보이고자한 잠재적인 curve alignment의 위험성에 대해 잘 보여주는 예제이다.
+<br><br>
+
+#### (c) Carry out an FPCA with one PC on the unaligned and aligned curves separately. For each, do a simple linear regression of the score onto a dummy variable (coded 0/1) indicating which type of mean the function had (i.e. is it from the first or second half of the sample). Calculate a p-value to determine if the estimated slope parameters you get are significant. Compare with the aligned and unaligned curves. What did aligning do to the p-value? You may want to rerun your simulations a few times to see how the p-values change.
+```{r}
+Data.PCA <- pca.fd(Data.FD, nharm=1)
+Data.PCA.Align <- pca.fd(Data.F.Align, nharm=1)
+
+par(mfrow=c(1,2))
+plot(Data.PCA$harmonics, main="2 PC of Data Unaligned")
+plot(Data.PCA.Align$harmonics, main="2 PC of Data Aligned")
+
+dummy <- c(rep(0,25),rep(1,25))
+Data.lm <- lm(Data.PCA$scores ~ dummy)
+Data.lm.align <- lm(Data.PCA.Align$scores ~ dummy)
+
+summary(Data.lm)
+summary(Data.lm.align)
+```
+align한 PC를 이용하거나 align하지 않은 PC를 이용하거나 둘 다 모델에 대한 p-value가 매우 작아 해당 회귀직선이 scores를 설명하는데 도움이 된다.
+<br><br>
+
+#### (d) Come up with one potential setting/application where you might lose something if you align. Make up whatever scenario you like, but think it through.
+Align을 하면 앞에서 봤듯이 두 봉우리 중 작은 하나의 봉우리가 사라지는 것처럼 특징을 잃을 수도 있다. 하지만 이렇게 Align을 한 후에도 PC score가 서로 다른 mean function을 구별할 때 효과적으로 사용될 수 있다.
+
+
+
+

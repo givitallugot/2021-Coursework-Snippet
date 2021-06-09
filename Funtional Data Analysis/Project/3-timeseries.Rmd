@@ -112,30 +112,41 @@ days <- 14
 total <- ncol(covid) - days*1 - 1
 nc <- as.numeric(total%/%days)
 
-country <- 'China'
-covid_fts <- MakeFtsObject(country, days)
-FtsObjectPlot1(covid_fts, country, days, 0.95, 1.05)
-FtsObjectPlot2(covid_fts, country, days, nc)
-FtsObjectPlot3(covid_fts, country, days, nc, FALSE, 'arima', 3, 5)
-# stationary=FALSE, method = "arima"
-
 country <- 'US' # 먼가 모델이 잘못됬나봄
 covid_fts <- MakeFtsObject(country, days)
 FtsObjectPlot1(covid_fts, country, days, 0.5, 1.05)
 FtsObjectPlot2(covid_fts, country, days, nc)
-FtsObjectPlot3(covid_fts, country, days, nc, FALSE, 'arima', 3, 3)
+us_mae_14 <- FtsObjectPlot3(covid_fts, country, days, nc, FALSE, 'ets', 3, 3)
 
 country <- 'Korea, South'
 covid_fts <- MakeFtsObject(country, days)
 FtsObjectPlot1(covid_fts, country, days, 0.95, 1.15)
 FtsObjectPlot2(covid_fts, country, days, nc)
-FtsObjectPlot3(covid_fts, country, days, nc, FALSE, 'arima', 3, 5)
+korea_mae_14 <- FtsObjectPlot3(covid_fts, country, days, nc, FALSE, 'ets', 3, 5)
 
-country <- 'New Zealand'
+country <- 'China'
 covid_fts <- MakeFtsObject(country, days)
 FtsObjectPlot1(covid_fts, country, days, 0.95, 1.05)
 FtsObjectPlot2(covid_fts, country, days, nc)
-FtsObjectPlot3(covid_fts, country, days, nc, FALSE, 'ets', 3, 10)
+china_mae_14 <- FtsObjectPlot3(covid_fts, country, days, nc, FALSE, 'arima', 3, 5)
+# stationary=FALSE, method = "arima"
+
+country <- 'Australia'
+covid_fts <- MakeFtsObject(country, days)
+FtsObjectPlot1(covid_fts, country, days, 0.95, 1.05)
+FtsObjectPlot2(covid_fts, country, days, nc)
+nz_mae_14 <- FtsObjectPlot3(covid_fts, country, days, nc, FALSE, 'arima', 3, 10)
+
+# MSE 비교
+df_14 <- data.frame(country = c('US', 'Korea', 'China', 'Australia'),
+                    method = c('ETS', 'ETS', 'ARIMA', 'ARIMA'),
+           stationary = c('FALSE', 'FALSE', 'FALSE',  'FALSE'),
+           number_of_PC = c(3, 3, 3, 3),
+           lambda = c(3, 5, 4, 10),
+           MAE = round(c(us_mae_14, korea_mae_14, china_mae_14, nz_mae_14),1))
+
+kable(df_14, align = "c") %>% kable_styling(full_width=F)
+
 ```
 
 # Make fts Object / Covid / 30 days
@@ -143,12 +154,6 @@ FtsObjectPlot3(covid_fts, country, days, nc, FALSE, 'ets', 3, 10)
 days <- 30
 total <- ncol(covid) - days*1 - 1
 nc <- as.numeric(total%/%days)
-
-country <- 'China'
-covid_fts <- MakeFtsObject(country, days)
-FtsObjectPlot1(covid_fts, country, days, 0.95, 1.05)
-FtsObjectPlot2(covid_fts, country, days, nc)
-china_mae_30 <- FtsObjectPlot3(covid_fts, country, days, nc, FALSE, 'ets', 3, 5)
 
 country <- 'US'
 covid_fts <- MakeFtsObject(country, days)
@@ -160,7 +165,13 @@ country <- 'Korea, South'
 covid_fts <- MakeFtsObject(country, days)
 FtsObjectPlot1(covid_fts, country, days, 0.95, 1.15)
 FtsObjectPlot2(covid_fts, country, days, nc)
-korea_mae_30 <- FtsObjectPlot3(covid_fts, country, days, nc, FALSE, 'arima', 3, 5)
+korea_mae_30 <- FtsObjectPlot3(covid_fts, country, days, nc, FALSE, 'ets', 3, 5)
+
+country <- 'China'
+covid_fts <- MakeFtsObject(country, days)
+FtsObjectPlot1(covid_fts, country, days, 0.95, 1.05)
+FtsObjectPlot2(covid_fts, country, days, nc)
+china_mae_30 <- FtsObjectPlot3(covid_fts, country, days, nc, FALSE, 'arima', 3, 5)
 
 country <- 'Australia' # 'New Zealand'
 covid_fts <- MakeFtsObject(country, days)
@@ -169,10 +180,11 @@ FtsObjectPlot2(covid_fts, country, days, nc)
 nz_mae_30 <- FtsObjectPlot3(covid_fts, country, days, nc, FALSE, 'arima', 4, 5)
 
 # MSE 비교
-df_30 <- data.frame(country = c('China', 'US', 'Korea', 'Australia'),
-           stationary = c('FALSE', 'FALSE', 'FALSE', 'FALSE'),
-           number_of_PC = c(3, 2, 3, 4),
-           lambda = c(5, 5, 5, 5),
+df_30 <- data.frame(country = c( 'US', 'Korea', 'China', 'Australia'),
+                    method = c('ETS', 'ETS', 'ARIMA', 'ARIMA'),
+           stationary = c( 'FALSE', 'FALSE', 'FALSE', 'FALSE'),
+           number_of_PC = c(2, 3, 3, 4),
+           lambda = c( 5, 5, 5, 5),
            MAE = round(c(china_mae_30, us_mae_30, korea_mae_30, nz_mae_30),1))
 
 kable(df_30, align = "c") %>% kable_styling(full_width=F)

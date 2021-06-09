@@ -1,0 +1,203 @@
+---
+title: "HW2 자료분석특론1"
+author: "202STG22 SUNMI JU"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = "center", message=F, warning=F, fig.height = 4.5, fig.width = 6) 
+```
+
+## Problem: 4.8
+#### Run the given codes. Estimate the model between octane and Near infrared reflectance spectra (NIR) using the three method
+```{r}
+library(fda)
+library(refund)
+library(ggplot2)
+library(dplyr)
+library(reshape2)
+set.seed(9000)
+
+plot(gasoline$octane, xlab="Gasoline sample",ylab="Octane
+    rating", pch=15)
+# dev.new(height=6,width=7)
+par(ps = 12, cex = 1, cex.lab=1.7, cex.axis=1.4, cex.main=1.7,
+     cex.sub=1,mar=c(4.25,4.5,1,1))
+plot.ts(gasoline$NIR[1,], lw=2, xlab="Wavelength", ylab="
+Spectrum")
+plot.ts(gasoline$NIR[2,] - gasoline$NIR[1,], lw=2, lty=1, xlab=
+    "Wavelength", ylab="Difference")
+lines(gasoline$NIR[5,]- gasoline$NIR[1,], lw=2, lty=2, xlab="
+    Wavelength", ylab="Difference")
+
+Y <- gasoline$octane; X <- gasoline$NIR
+
+# Method 1: data2fd
+k_all = 5:20
+aic.lin = numeric(0)
+for(k in k_all){
+  oct.lin <- pfr(Y ~ lf(X, bs = "ps", k=k, sp = -1)) # fx = TRUE
+  aic.lin <- c(aic.lin, oct.lin$aic)
+}
+k = k_all[which.min(aic.lin)] # 10
+
+oct.fit.lin = pfr(Y ~ lf(X, bs = "ps", k=k, sp = -1)) # fx = TRUE
+
+# Method 2: penalized smoothing
+k_all = 5:20
+aic.pfr = numeric(0)
+for(k in k_all){
+  oct.pfr <- pfr(Y ~ lf(X, bs = "ps", k=k))
+  aic.pfr <- c(aic.pfr, oct.pfr$aic)
+}
+k = k_all[which.min(aic.pfr)] # 10
+
+oct.fit.pfr = pfr(Y ~ lf(X, bs = "ps", k=k))
+
+# Method 3: FPCA
+k_all = 5:20
+aic.fpcr = numeric(0)
+for(k in k_all){
+  oct.fpcr <- pfr(Y ~ fpc(X, ncomp=k))
+  aic.fpcr <- c(aic.fpcr, oct.fpcr$aic)
+}
+k = k_all[which.min(aic.fpcr)] # 9
+
+oct.fit.fpcr = pfr(Y ~ fpc(X, ncomp=k)) 
+
+# Plot
+grid = seq(0, 1, length = 100)
+coefs = data.frame(grid = grid,
+                   Basis = coef(oct.fit.lin)$value,
+                   Penalized = coef(oct.fit.pfr)$value,
+                   FPCR = coef(oct.fit.fpcr)$value)
+coefs.m = melt(coefs, id = "grid")
+colnames(coefs.m) = c('grid', 'Method', 'Value')
+ggplot(coefs.m, aes(x=grid, y=Value, color=Method)) + geom_path() + theme_bw() + ggtitle('Coefficients of Regression from Three Methods') + theme(plot.title = element_text(hjust=0.5, size=12, face="bold"))
+```
+B coefficient 중 FPCR은 다른 두 방법에 비해 조금 더 wiggly 하게 추정되었다. NIR 스팩트럼과 옥탄가 사이에는 cycle 관계가 존재하며, 중간쯤에서 옥탄가가 최하이고, 중간을 벗어나면 옥탄가가 최고가 된다.
+<br><br>
+
+## Problem: 4.9
+#### Run the given codes. Estimate the model between Fat20 and tecator$absorp.fdata using the three methods
+```{r}
+library("fda.usc");  data("tecator");  names(tecator)
+absorp <- tecator$absorp.fdata # X
+Fat20 <- ifelse(tecator$y$Fat < 20, 0, 1) * 2 + 2 # Y
+plot(tecator$absorp.fdata, col = Fat20, ylab=" ",
+xlab="Wavelength", main="Absorbances")
+absorp.d1 <- fdata.deriv(absorp, nderiv = 1)
+plot(absorp.d1, col = Fat20, ylab=" ",
+xlab="Wavelength", main="Derivatives")
+
+Y <- Fat20; X <- tecator$absorp.fdata$data
+
+# Method 1: data2fd
+k_all = 5:20
+aic.lin = numeric(0)
+for(k in k_all){
+  fat.lin <- pfr(Y ~ lf(X, bs = "ps", k=k, fx = TRUE))
+  aic.lin <- c(aic.lin, fat.lin$aic)
+}
+k = k_all[which.min(aic.lin)] # 11
+
+fat.fit.lin = pfr(Y ~ lf(X, bs = "ps", k=k, fx = TRUE))
+
+# Method 2: penalized smoothing
+k_all = seq(11, 101, 10)
+aic.pfr = numeric(0)
+for(k in k_all){
+  fat.pfr <- pfr(Y ~ lf(X, bs = "ps", k=k))
+  aic.pfr <- c(aic.pfr, fat.pfr$aic)
+}
+plot(aic.pfr, type='l', main = 'AIC for Penalized Smoothing', xaxt='n')
+axis(side=1, at=c(1:10), labels = k_all)
+
+k = 31 # choose k from plot
+fat.fit.pfr = pfr(Y ~ lf(X, bs = "ps", k=k))
+
+# Method 3: FPCA
+k_all = seq(11, 30, 3)
+aic.fpcr = numeric(0)
+for(k in k_all){
+  fat.fpcr <- pfr(Y ~ fpc(X, ncomp=k))
+  aic.fpcr <- c(aic.fpcr, fat.fpcr$aic)
+}
+plot(aic.pfr, type='l', main = 'AIC for Penalized Smoothing', xaxt='n')
+axis(side=1, at=c(1:7), labels = k_all)
+
+k = 17 # choose k from plot
+fat.fit.fpcr = pfr(Y ~ fpc(X, ncomp=k)) 
+
+# Plot
+grid = seq(0, 1, length = 100)
+coefs = data.frame(grid = grid,
+                   Basis = coef(fat.fit.lin)$value,
+                   Penalized = coef(fat.fit.pfr)$value,
+                   FPCR = coef(fat.fit.fpcr)$value)
+coefs.m = melt(coefs, id = "grid")
+colnames(coefs.m) = c('grid', 'Method', 'Value')
+ggplot(coefs.m, aes(x=grid, y=Value, color=Method)) + geom_path() + theme_bw() + ggtitle('Coefficients of Regression from Three Methods') + theme(plot.title = element_text(hjust=0.5, size=12, face="bold"))
+```
+B coefficient 중 Basis 다른 두 방법에 비해 조금 더 wiggly 하게 추정되었다. AIC 기준으로 최적의 k를 찾은 결과, Penalized Smoothing Regression과 FPCR의 계수 추정치는 높낮이에 변화가 별로 없다. 원 데이터의 처음과 끝까지 값에 크게 차이가 크지 않아서 다음과 같은 B가 추정되었다고 해석해볼 수 있다.
+<br><br>
+
+## Problem
+#### Run the code about the relationship between temperature and the region in Canada in the textbook 78 and 79. Interpret the result. You may need to edit the code.
+```{r, fig.height = 6, fig.width = 8.5}
+daybasis25 <- create.fourier.basis(rangeval = c(0,365), nbasis=25, axes=list('axesIntervals'))
+
+# Temp.fd <- with(CanadianWeather, smooth.basisPar(day.5, dailyAv[,,'Temperature.C'], daybasis25)$fd)
+
+Temp.fd <- smooth.basis(day.5, CanadianWeather$dailyAv[,,'Temperature.C'], daybasis25)$fd
+
+modmat = cbind(1, model.matrix(~factor(CanadianWeather$region)-1))
+constraints = matrix(c(0,1,1,1,1),1)
+
+# Penalized OLS
+olsmod = fosr(fdobj = Temp.fd, X = modmat, con = constraints, method = "OLS", lambda = 100*10:30)
+
+# Penalized GLS
+glsmod = fosr(fdobj = Temp.fd, X = modmat, con = constraints, method = "GLS")
+
+par(mfrow = c(2,5), mar = c(5,2,4,1))
+plot(olsmod, split=1, set.mfrow=FALSE, titles=c("OLS: Intercept", levels(factor(CanadianWeather$region))), ylab = "", xlab = "Day")
+
+plot(glsmod, split=1, set.mfrow=FALSE, titles=c("GLS: Intercept", levels(factor(CanadianWeather$region))), ylab = "", xlab = "Day")
+```
+Penalized OLS와 Penalized GLS로 추정해본 결과 추세는 비슷하나, GLS가 지역간의 correlation을 반영한 모델로 OLS보다 조금 더 smooth 하게 추정된다. Intercept Function을 평균을 의미하며 겨울에는 영하 이하로 온도가 낮고 여름에는 온도가 높다. 계수 추정치는 평균으로부터 얼마나 차이가 나는지로 해석하며, Artic은 겨울 여름 모두 평균 기온보다 -이기 때문에 매우 추움을 의미하고, Atlantic은 겨울 여름 모두 평균 기온보다 + 이지만 차이가 크지 않아서 평균 기온보다 조금 따뜻한 정도이며, Continental은 겨울에는 평균보다 -이고 여름에는 평균보다 +인 내륙 지방의 특징을 가지며, Pacific은 겨울에는 평균보다 +이고, 여름에는 비슷하여 사계절 동안 상대적으로 따뜻함을 알 수 있다.
+<br><br>
+
+## Problem 5.17
+#### (a) Use the following code to create functional objects containing hip and knee angles:
+```{r}
+require(fda)
+gaittime <- as.numeric(dimnames(gait)[[1]])*20
+gaitrange <- c(0,20)
+gaitbasis <- create.fourier.basis(gaitrange, nbasis=21)
+harmaccelLfd <- vec2Lfd(c(0, (2*pi/20)^2, 0), rangeval = gaitrange)
+gaitfd <- smooth.basisPar(gaittime, gait, gaitbasis, Lfdobj = harmaccelLfd, lambda = 1e-2)$fd
+hipfd <- gaitfd[,1]; kneefd <- gaitfd[,2]
+```
+
+#### (b) Use the call to estimate the concurrent model to predict the knee angle from the hip angle.
+```{r, fig.height = 6, fig.width = 8.5}
+knee.hip.f <- fRegress(kneefd ~ hipfd)
+knee.fit <- knee.hip.f$yhatfdobj
+
+#  plot the data(left) and fitted
+par(mfrow = c(1,2))
+plot(kneefd, main="Original data")
+plot(knee.fit,  pch="o", main="Fitted by concurrent functional model")
+
+# plot the estimated regression function
+par(mfrow = c(1,2))
+plot(knee.hip.f$betaestlist[[1]], main="Beta0")
+plot(knee.hip.f$betaestlist[[2]], main="Beta1")
+# too complicated to interpret
+
+#  display the number of basis functions used:
+print(knee.hip.f$betaestlist[[2]]$fd$basis$nbasis)
+#  21 basis functions to fit 39 values, no wonder we over-fit the data
+```
+

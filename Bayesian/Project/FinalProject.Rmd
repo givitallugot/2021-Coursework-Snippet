@@ -1,0 +1,323 @@
+---
+title: "FinalPoject"
+author: "SUNMI JU"
+date: "6/6/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = "center", message=F, warning=F)
+library(rjags)
+library(dplyr)
+library(MASS)
+```
+
+```{r}
+data <- read.csv('./insurance.csv')
+head(data)
+hist(data$charges, main="Histogram of Medical Costs")
+summary(data)
+
+data$sex <- ifelse(data$sex == "female", 1, 0) # male:0, female:1
+data$region <- ifelse(data$region == "southwest", 0, ifelse(data$region == "northwest", 1, ifelse(data$region == "northeast", 2, 3))) # southwest: 0, northwest:  1, northeast: 2, southeast: 3
+data$smoker <- ifelse(data$smoker == "yes", 1, 0) # no:0, yes:1
+data$charges <- round(data$charges, 0)
+
+# Poisson
+glm.fit <- glm(charges~age + factor(sex) + bmi + children + factor(smoker) + factor(region), data=data, family=poisson(link="log"))
+summary(glm.fit)
+
+# Negative Bionomial
+glm.fit.nb <- glm.nb(charges~age + factor(sex) + bmi + children + factor(smoker) + factor(region), data=data)
+summary(glm.fit.nb)
+```
+
+
+## Poisson Model 적합
+```{r}
+p = ncol(data)
+y = data$charges
+intercept = rep(1, nrow(data))
+X = cbind(intercept, data[1:6])
+
+modelString="
+  model{
+    for(i in 1:length(y)){
+      y[i] ~ dpois(lambda[i])
+      log(lambda[i]) <- inprod(X[i,], beta[])
+    }
+    for(i in 1:p){
+      beta[i] ~ dnorm(mu.beta[i], Tau.beta[i])
+    }
+  }
+"
+writeLines(modelString, "./project_pois_1.txt")
+
+# prior parameters
+mu.beta = rep(0, p)
+Tau.beta = rep(0.01, p)
+dataList = list(p=p, y=y, X=X, mu.beta=mu.beta, Tau.beta=Tau.beta)
+initsList=list(beta=mu.beta)
+
+jagsModel.pois = jags.model(file="./project_pois_1.txt", data=dataList, inits=initsList,
+                           n.chains=3, n.adapt=10000)
+update(jagsModel.pois, n.iter=3000)
+codaSamples = coda.samples(jagsModel.pois, variable.names = c("beta"),
+                           thin = 3, n.chains = 3, n.iter = 10000)
+coda::gelman.diag(codaSamples) # 모두 1.1 이하, 1에 가까우므로 수렴에 이르렀다고 판단
+summary(codaSamples)
+
+coda::traceplot(codaSamples, main="", ylab="beta")
+
+# 반응변수 추정치와 관측치 비교
+mcmcSamples = as.matrix(codaSamples)
+beta.hat = apply(mcmcSamples, 2, mean)
+lambda.hat = exp(as.matrix(X)%*%beta.hat)
+
+par(mfrow=c(1,2))
+hist(y, main="Histogram of Medical Costs")
+hist(lambda.hat, main="Histogram of Predicted Medical Costs")
+
+data$pred_1 <- lambda.hat
+mean(abs(data$charges - data$pred_1)) # MAE
+dic.pois = dic.samples(jagsModel.pois, 10000); dic.pois
+```
+그렇게 잘 추정되지 않음
+
+## Negative Binomial Model 적합
+```{r}
+modelString="
+  model{
+    for(i in 1:length(y)){
+      y[i] ~ dnegbin(P[i],r)
+      P[i] <- r/(r+lambda[i]) 
+      log(lambda[i]) <- inprod(X[i,], beta[])
+    }
+    ## Priors
+    for(i in 1:p){
+      beta[i] ~ dnorm(mu.beta[i], Tau.beta[i])
+    }
+    r ~ dunif(0,50)
+  }
+"
+writeLines(modelString, "./project_nb_1.txt")
+
+# prior parameters
+mu.beta = rep(0, p)
+Tau.beta = rep(0.01, p)
+dataList = list(p=p, y=y, X=X, mu.beta=mu.beta, Tau.beta=Tau.beta)
+initsList=list(beta=mu.beta)
+
+jagsModel.nb = jags.model(file="./project_nb_1.txt", data=dataList, inits=initsList,
+                           n.chains=3, n.adapt=10000)
+update(jagsModel.nb, n.iter=3000)
+codaSamples = coda.samples(jagsModel.nb, variable.names = c("beta"),
+                           thin = 3, n.chains = 3, n.iter = 10000)
+coda::gelman.diag(codaSamples) # 모두 1.1 이하, 1에 가까우므로 수렴에 이르렀다고 판단
+summary(codaSamples)
+
+coda::traceplot(codaSamples, main="", ylab="beta")
+
+# 반응변수 추정치와 관측치 비교
+mcmcSamples = as.matrix(codaSamples)
+beta.hat = apply(mcmcSamples, 2, mean)
+lambda.hat = exp(as.matrix(X)%*%beta.hat)
+
+par(mfrow=c(1,2))
+hist(y, main="Histogram of Medical Costs")
+hist(lambda.hat, main="Histogram of Predicted Medical Costs")
+
+data$pred_1 <- lambda.hat
+mean(abs(data$charges - data$pred_1)) # MAE
+dic.nb = dic.samples(jagsModel.nb, 10000); dic.nb
+```
+
+
+## Variable Selection - SSVS
+stepwise와 비교
+```{r}
+modelString="
+  model{
+    for(i in 1:length(y)){
+      y[i] ~ dpois(lambda[i])
+      log(lambda[i]) <- beta0 + inprod(X[i,], beta[])
+    }
+    
+    gamma0 ~ dbern(0.5)
+    for(j in 1:k){
+      gamma[j] ~ dbern(0.5)
+    }
+    
+    beta0 ~ dnorm(mu.b0, tau.b0)
+    mu.b0 <- 0
+    tau.b0 <- gamma0*0.01 + (1-gamma0)*10000
+    
+    for(j in 1:k){
+      beta[j] ~ dnorm(mu.b[j], tau.b[j])
+      mu.b[j] <- 0
+      tau.b[j] <- gamma[j]*0.01 + (1-gamma[j])*10000
+    }
+    invsigsq ~ dgamma(0.01, 0.01)
+  }
+"
+writeLines(modelString, "./project_pois_ssvs.txt")
+
+# prior parameters
+X = data[1:6]
+
+mu.beta0 = glm.fit$coefficients[1]
+mu.beta = glm.fit$coefficients[2:p]
+gammainit = rep(1, p-1)
+
+dataList = list(k=p-1, y=y, X=X)
+initsList=list(beta0=mu.beta0, beta=mu.beta, gamma0=1, gamma=gammainit)
+
+jagsModel.pois.ssvs = jags.model(file="./project_pois_ssvs.txt", data=dataList, inits=initsList,
+                           n.chains=3, n.adapt=3000)
+update(jagsModel.pois.ssvs, n.iter=10000)
+codaSamples = coda.samples(jagsModel.pois.ssvs, variable.names = c("gamma0","gamma","beta0","beta"),
+                           thin = 3, n.chains = 3, n.iter = 10000)
+# coda::gelman.diag(codaSamples) # 모두 1.1 이하, 1에 가까우므로 수렴에 이르렀다고 판단
+# summary(codaSamples)
+
+# coda::traceplot(codaSamples, main="", ylab="beta")
+
+# 모수 추정치
+mcmcSamples = as.matrix(codaSamples)
+para.hat = apply(mcmcSamples, 2, mean)
+beta.hat = para.hat[1:p]
+gamma.hat = para.hat[(p+1):(2*p)]
+
+beta.hat
+gamma.hat
+# gamma 0.5 넘는 변수만 선택하면, 4, 5 뿐 (분산을 더 작게 할 필요가 있을듯?)
+
+glm.fit.ssvs <- glm(charges~children + factor(smoker), data=data, family=poisson(link="log"))
+summary(glm.fit.ssvs) # 3262343 (다 넣었을 때) 보다 매우 커짐
+```
+
+## Variable Selection - GVS
+```{r}
+modelString="
+  model{
+    for(j in 1:k){
+      gbeta[j] <- gamma[j]*beta[j]
+    }
+    for(i in 1:length(y)){
+      y[i] ~ dpois(lambda[i])
+      log(lambda[i]) <- gamma0*beta0 + inprod(X[i,1:k], gbeta[1:k])
+    }
+    
+    gamma0 ~ dbern(0.5)
+    for(j in 1:k){
+      gamma[j] ~ dbern(0.5)
+    }
+    
+    beta0 ~ dnorm(mu.b0, tau.b0)
+    mu.b0 <- (1-gamma0)*mu.beta0
+    tau.b0 <- gamma0*0.01 + (1-gamma0)/var.beta0
+    
+    for(j in 1:k){
+      beta[j] ~ dnorm(mu.b[j], tau.b[j])
+      mu.b[j] <-(1-gamma[j])*mu.beta[j]
+      tau.b[j] <- gamma[j]*0.01 + (1-gamma[j])/var.beta[j]
+    }
+    invsigsq ~ dgamma(0.01, 0.01)
+  }
+"
+writeLines(modelString, "./project_pois_gvs.txt")
+
+# prior parameters
+X = data[1:6]
+
+mu.beta0 = glm.fit$coefficients[1]
+var.beta0 = vcov(glm.fit)[1,1]
+mu.beta = glm.fit$coefficients[2:p]
+var.beta = diag(vcov(glm.fit)[2:p,2:p])
+gammainit = rep(1, p-1)
+
+dataList = list(k=p-1, y=y, X=X,  mu.beta0=mu.beta0, var.beta0=var.beta0, mu.beta=mu.beta, var.beta=var.beta)
+initsList=list(beta0=mu.beta0, beta=mu.beta, gamma0=1, gamma=gammainit)
+
+jagsModel.pois.gvs = jags.model(file="./project_pois_gvs.txt", data=dataList, inits=initsList,
+                           n.chains=3, n.adapt=3000)
+update(jagsModel.pois.gvs, n.iter=10000)
+codaSamples = coda.samples(jagsModel.pois.gvs, variable.names = c("gamma0","gamma","beta0","beta"),
+                           thin = 3, n.chains = 3, n.iter = 10000)
+# coda::gelman.diag(codaSamples) # 모두 1.1 이하, 1에 가까우므로 수렴에 이르렀다고 판단
+# summary(codaSamples)
+
+# coda::traceplot(codaSamples, main="", ylab="beta")
+
+# 모수 추정치
+mcmcSamples = as.matrix(codaSamples)
+para.hat = apply(mcmcSamples, 2, mean)
+print(para.hat[1:p]) # beta hat
+print(para.hat[(p+1):(2*p)]) # gamma hat
+# gamma 0.5 넘는 변수만 선택하면, 다 선택하라고 나옴! 이게 더 맞는듯
+```
+
+## Poisson with Random Effect (GLMM)
+```{r}
+# set.seed(1234)
+# newdata <- data[sample(c(1:nrow(data)),130),] # 약 10%만 이용
+# hist(newdata$charges)
+
+modelString="
+  model{
+    for(i in 1:length(y)){
+      y[i] ~ dpois(lambda[i])
+      log(lambda[i]) <- alpha + inprod(X[i,], beta[]) + nu[i]
+    }
+    # prior
+    for(i in 1:length(y)){
+      nu[i] ~ dnorm(0, tau.nu)
+    }
+    alpha  ~ dnorm(0,0.001)
+    tau.nu ~ dgamma(0.001,0.001)
+    for(j in 1:p){
+      beta[j] ~ dnorm(mu.beta[j], Tau.beta[j])
+    }
+    # return on variance scale
+    sig2 = 1 / tau.nu
+  }
+"
+writeLines(modelString, "./project_pois_glmm.txt")
+
+# prior parameters
+intercept = rep(1, nrow(data))
+X = cbind(intercept, data[1:6])
+y = data$charges
+mu.beta = rep(0, p)
+Tau.beta = rep(0.01, p)
+dataList = list(p=p, y=y, X=X, mu.beta=mu.beta, Tau.beta=Tau.beta)
+initsList = list(beta=mu.beta)
+
+jagsModel.pois.glmm = jags.model(file="./project_pois_glmm.txt", data=dataList, inits=initsList,
+                                 n.chains=3, n.adapt=10000)
+
+update(jagsModel.pois.glmm, n.iter=3000)
+codaSamples = coda.samples(jagsModel.pois.glmm, variable.names = c("beta", "alpha", "sig2", "nu"),
+                           thin = 1, n.chains = 3, n.iter = 10000)
+# coda::gelman.diag(codaSamples)
+summary(codaSamples)$statistics[c(1:8),]
+summary(codaSamples)$quantile[c(1:8),]
+
+# coda::traceplot(codaSamples, main="", ylab="beta")
+
+# 반응변수 추정치와 관측치 비교
+mcmcSamples = as.matrix(codaSamples)
+beta.hat2 = apply(mcmcSamples, 2, mean)
+lambda.hat2 = exp(beta.hat2[1] + (as.matrix(X)%*%beta.hat2[2:8] + beta.hat2[9:1346]))
+
+beta.hat2[2:8]
+beta.hat2[1347]
+
+par(mfrow=c(1,2))
+hist(y, main="Histogram of Medical Costs")
+hist(lambda.hat2, main="Histogram of Predicted Medical Costs")
+
+data$pred_2 <- lambda.hat2
+mean(abs(data$charges - data$pred_2)) # MAE
+dic.pois.glmm = dic.samples(jagsModel.pois.glmm, 10000); dic.pois.glmm
+```

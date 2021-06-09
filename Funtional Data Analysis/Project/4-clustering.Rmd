@@ -61,7 +61,7 @@ for(i in 1:length(clus_FEM_3$cls)){
     clus1 = paste(clus1, covid$Country[i])
   }
   else if(clus_FEM_3$cls[i] == 2){
-    clus2 = paste(clus3, covid$Country[i])
+    clus2 = paste(clus2, covid$Country[i])
   }
   else{
     clus3 = paste(clus3, covid$Country[i])
@@ -69,7 +69,7 @@ for(i in 1:length(clus_FEM_3$cls)){
 }
 
 kable(data.frame(Cluster = c("Cluster 1", "Cluster 2", "Cluster 3"),
-                 Country = c(clus1, clus2, clus3))) %>% kable_styling(full_width=F)
+                 Country = c(clus3, clus2, clus1))) %>% kable_styling(full_width=F)
 ```
 
 ## funHDDC
@@ -85,6 +85,25 @@ clus_HDDC_3$model
 clus_HDDC_3$BIC
 
 plot(fdobj, col=clus_HDDC_3$class)
+
+# Table
+df_HDDC_3 <- data.frame(Country= covid$Country, Cluster=clus_HDDC_3$class)
+
+clus1 = ''; clus2 = ''; clus3 = ''
+for(i in 1:length(clus_HDDC_3$class)){
+  if(clus_HDDC_3$class[i] == 1){
+    clus1 = paste(clus1, covid$Country[i])
+  }
+  else if(clus_HDDC_3$class[i] == 2){
+    clus2 = paste(clus2, covid$Country[i])
+  }
+  else{
+    clus3 = paste(clus3, covid$Country[i])
+  }
+}
+
+kable(data.frame(Cluster = c("Cluster 1", "Cluster 2", "Cluster 3"),
+                 Country = c(clus3, clus2, clus1))) %>% kable_styling(full_width=F)
 ```
 
 ## fdakma
@@ -107,16 +126,36 @@ Y0 <- Y0[,-480]
 
 X <- X[2:length(X)]
 X <- t(X)
-matplot(t(X), t(Y1), type='l')
+matplot(t(X), t(Y0), type='l')
 
 # Example: result of kma function with 2 clusters, allowing affine transformation for the abscissas and considering 'd1.pearson' as similarity.method.
+?kma
 fdakma_example <- kma(
   x=X, y0=Y0, y1=Y1, n.clust = 2,
-  warping.method = 'affine',
+  warping.method = 'NOalignment',
   similarity.method = 'd1.pearson',
   center.method = 'k-means',
   seeds = c(1,21)
 )
 kma.show.results(fdakma_example)
+fdakma_example$labels
+
+df_KMA_3 <- data.frame(Country= covid$Country, Cluster=fdakma_example$labels)
+
+clus1 = ''; clus2 = ''; clus3 = ''
+for(i in 1:length(fdakma_example$labels)){
+  if(fdakma_example$labels[i] == 1){
+    clus1 = paste(clus1, covid$Country[i])
+  }
+  else if(fdakma_example$labels[i] == 2){
+    clus2 = paste(clus2, covid$Country[i])
+  }
+  else{
+    clus3 = paste(clus3, covid$Country[i])
+  }
+}
+library(kableExtra)
+kable(data.frame(Cluster = c("Cluster 1", "Cluster 2"),
+                 Country = c(clus2, clus1))) %>% kable_styling(full_width=F)
 ```
 

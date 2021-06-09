@@ -1,0 +1,11 @@
+
+  model{
+    for(i in 1:length(y)){
+      y[i] ~ dpois(lambda[i])
+      log(lambda[i]) <- inprod(X[i,], beta[])
+    }
+    for(i in 1:p){
+      beta[i] ~ dnorm(mu.beta[i], Tau.beta[i])
+    }
+  }
+

@@ -1,0 +1,27 @@
+
+  model{
+    for(j in 1:k){
+      gbeta[j] <- gamma[j]*beta[j]
+    }
+    for(i in 1:length(y)){
+      y[i] ~ dpois(lambda[i])
+      log(lambda[i]) <- gamma0*beta0 + inprod(X[i,1:k], gbeta[1:k])
+    }
+    
+    gamma0 ~ dbern(0.5)
+    for(j in 1:k){
+      gamma[j] ~ dbern(0.5)
+    }
+    
+    beta0 ~ dnorm(mu.b0, tau.b0)
+    mu.b0 <- (1-gamma0)*mu.beta0
+    tau.b0 <- gamma0*0.01 + (1-gamma0)/var.beta0
+    
+    for(j in 1:k){
+      beta[j] ~ dnorm(mu.b[j], tau.b[j])
+      mu.b[j] <-(1-gamma[j])*mu.beta[j]
+      tau.b[j] <- gamma[j]*0.01 + (1-gamma[j])/var.beta[j]
+    }
+    invsigsq ~ dgamma(0.01, 0.01)
+  }
+

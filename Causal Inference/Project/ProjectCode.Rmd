@@ -1,0 +1,167 @@
+---
+title: "project"
+author: "SUNMI JU"
+date: "5/30/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align = "center", message=F, warning=F)
+library(geepack)
+library(readxl)
+library(MatchIt)
+library(dplyr)
+library(ggplot2)
+library(psych)
+```
+
+
+## Example Data Preprocessing
+```{r}
+ALL <- read_excel('./datafinal0.xls', sheet='data')
+SI <- read_excel('./datafinal0.xls', sheet='SI')
+SI$Year <- SI$Year + 3
+sum(ALL[ALL$BuiltUp40mph == 'Non built up road',7])
+sum(ALL[ALL$BuiltUp40mph == 'Built up road',7])
+
+ALL <- merge(ALL, SI, by.x=c("Year", "Region", "CasualtyClass", "UrbanRural", "BuiltUp40mph", "RoadType"), by.y=c("Year", "Region", "CasualtyClass", "UrbanRural", "BuiltUp40mph", "RoadType"))
+
+ALL$UrbanRural <- as.factor(ALL$UrbanRural); ALL$UrbanRural = relevel(ALL$UrbanRural, ref='Rural')
+ALL$BuiltUp40mph<- as.factor(ALL$BuiltUp40mph); ALL$BuiltUp40mph = relevel(ALL$BuiltUp40mph, ref='Non built up road')
+ALL$BuiltUp40mph <- ifelse(ALL$BuiltUp40mph=='Non built up road', 0, 1)
+
+ALL$RoadType <- paste(ALL$RoadType, "roads")
+ALL$RoadType <- as.factor(ALL$RoadType); ALL$RoadType = relevel(ALL$RoadType, ref='B roads')
+
+table(ALL$BuiltUp40mph)
+
+# Undersampling
+# library(ROSE)
+
+# ALL.under <- ovun.sample(BuiltUp40mph ~ ., data = ALL, method = "under",
+#                            p = 0.5, seed = 1)$data
+# table(ALL.under$BuiltUp40mph)
+# 
+# # Over Sampling
+# ALL.over <- ovun.sample(BuiltUp40mph ~ ., data = ALL, method = "over",
+#                              N = 300)$data
+# table(ALL.over$BuiltUp40mph)
+# length(unique(ALL.over$KSI_3YD))
+hist(ALL$KSI)
+```
+
+
+## pre analysis
+```{r}
+
+N = sum(ALL$KSI)
+ALL %>%
+  group_by(BuiltUp40mph) %>%
+  summarise(NumberofKSI = sum(KSI),
+            Mean_KSI = mean(KSI),
+            Std_error = sd(KSI) / sqrt(NumberofKSI))
+
+# 처음 데이터부터 아예 다름
+
+with(ALL, t.test(log(KSI) ~ BuiltUp40mph))
+```
+
+
+## IPW
+```{r}
+# IPW
+fit_IPW <- glm(BuiltUp40mph ~ SI, family=binomial(link = "logit"), data=ALL)
+summary(fit_IPW)
+
+IPW <- ifelse(ALL$BuiltUp40mph == 'Non built up road', 1 - predict(fit_IPW, type="response"),
+                  predict(fit_IPW, type="response"))
+ALL$IPW = 1/IPW
+
+fit_MSM <- geeglm(KSI ~ BuiltUp40mph + SI + RoadType + UrbanRural, data=ALL, weigh=IPW, id=c(1:nrow(ALL)), family = poisson(link = "log"))
+summary(fit_MSM)
+```
+
+## Propensity Score Estimation + Outcome Regression
+```{r}
+fit_PS <- glm(BuiltUp40mph ~ SI + RoadType + UrbanRural, family=binomial(link="logit"), data=ALL)
+summary(fit_PS)
+ALL$ps <- predict(fit_PS, ALL, type="response") # propensity score
+
+prs_df <- data.frame(pr_score = predict(fit_PS, type = "response"),
+                     BuiltUp40mph = fit_PS$model$BuiltUp40mph)
+
+labs <- paste("40mph zones:", c("Yes", "No"))
+prs_df %>%
+  mutate(BuiltUp40mph = ifelse(BuiltUp40mph == 1, labs[1], labs[2])) %>%
+  ggplot(aes(x = pr_score)) +
+  geom_histogram(color = "white") +
+  facet_wrap(~BuiltUp40mph) +
+  xlab("Probability of going to Catholic school") +
+  theme_bw()
+
+# outcome
+fit_OUT <- glm(KSI ~ BuiltUp40mph + SI + UrbanRural + RoadType, data=ALL, family = poisson(link = "log"), weights=ps)
+summary(fit_OUT)
+```
+
+## Propensity Score Matching + Outcome Regression
+```{r}
+# 1:1 NN PS matching w/o replacement
+m.out1 <- matchit(BuiltUp40mph ~ SI + RoadType + UrbanRural, data = ALL,
+                 method = "full")
+summary(m.out1, un = FALSE)
+
+round(summary(m.out1)$sum.all,2)
+round(summary(m.out1)$sum.matched[,1:2],2)
+ 
+plot(m.out1, type = "jitter", interactive = FALSE)
+
+ALL.m <- match.data(m.out1, distance = "psscore")
+table(ALL.m$BuiltUp40mph)
+
+ALL.m %>%
+mutate(ps.grp = round(ps/0.05) * 0.05) %>%
+group_by(BuiltUp40mph, ps.grp) %>%
+summarize(n = n()) %>%
+ungroup() %>%
+mutate(n2 = ifelse(BuiltUp40mph == 0, yes = n, no = -1*n)) %>%
+ggplot(aes(x = ps.grp, y = n2, fill = as.factor(BuiltUp40mph))) +
+geom_bar(stat = 'identity', position = 'identity') +
+geom_text(aes(label = n, x = ps.grp, y = n2 + ifelse(BuiltUp40mph == 0, 8, -8))) + xlab('Probability of Quitting Smoking During Follow-up') +
+ylab('N') +
+ggtitle('Propensity Score Distribution by Treatment Group') + scale_fill_discrete('') +
+scale_x_continuous(breaks = seq(0, 1, 0.05)) +
+theme(legend.position = 'bottom', legend.direction = 'vertical',
+axis.ticks.y = element_blank(), axis.text.y = element_blank())
+
+# cols <- c('SI', 'UrbanRural', 'RoadType')
+# lapply(cols, function(v) {
+#     t.test(ALL.m[, v] ~ ALL.m$BuiltUp40mph)
+# })
+
+# model outcome
+fit_OUT.m <- glm(KSI ~ BuiltUp40mph + SI + UrbanRural + RoadType, data=ALL.m, family = poisson(link = "log"))
+summary(fit_OUT.m)
+
+# Estimate 
+with(ALL.m, t.test(log(KSI) ~ BuiltUp40mph))
+
+# without covariate
+fit_est_treat <- glm(KSI ~ BuiltUp40mph, data = ALL.m, family = poisson(link="log"))
+summary(fit_est_treat)
+
+# with covariate
+fit_est_notreat <- glm(KSI ~ BuiltUp40mph+ SI + UrbanRural + RoadType, data = ALL.m, family = poisson(link="log"))
+summary(fit_est_notreat)
+```
+```{r}
+library(kableExtra)
+
+
+kable(data.frame(Method = c("IPW", "PS & OR", "PSM & OR"),
+                 Coef = c(fit_MSM$coefficients[2], fit_OUT$coefficients[2], fit_OUT.m$coefficients[2]),
+                 Lower = c(fit_MSM$coefficients[2]-summary(fit_MSM)$coef[2,2], fit_OUT$coefficients[2]-summary(fit_OUT)$coef[2,2], fit_OUT.m$coefficients[2]-summary(fit_OUT.m)$coef[2,2]),
+                 Upper = c(fit_MSM$coefficients[2]+summary(fit_MSM)$coef[2,2], fit_OUT$coefficients[2]+summary(fit_OUT)$coef[2,2], fit_OUT.m$coefficients[2]+summary(fit_OUT.m)$coef[2,2]))) %>% kable_styling(full_width=F)
+
+```
+
