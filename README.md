@@ -88,9 +88,8 @@ Propensity Score matching을 이용한 Outcome model 을 적합했을 때 Averag
 # [자료분석특론1] Project Description
 수업 시간에 배운 함수형 데이터 분석(Functional Data Analysis)로 실제 데이터 분석 수행하는 기말 프로젝트 진행
 
-[선정 주제: 전세계적으로 유행했던 세가지의 감염병인 코로나(Covid19), 신종플루(H1N1), 사스(SARS)의 국가별 누적 확진자 데이터를 Functional Data Analysis의 특장점을 이용하여 이 세 가지 전염병을 함께 분석][dataset-1]
-
-[PPT 자료][ppt-fda]
+#### [선정 주제: 전세계적으로 유행했던 세가지의 감염병인 코로나(Covid19), 신종플루(H1N1), 사스(SARS)의 국가별 누적 확진자 데이터를 Functional Data Analysis의 특장점을 이용하여 이 세 가지 전염병을 함께 분석][dataset-1]
+#### [PPT 자료][ppt-fda]
 
 ### 1. Mean Function
 - Penalized Smoothing을 통해 Basis Expansion
