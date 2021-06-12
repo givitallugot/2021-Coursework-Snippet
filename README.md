@@ -62,7 +62,7 @@ Ethereum 기반의 [Remix][remix] 사이트에서 진행한 간단한 solidity �
 <br>
 
 # [고급선형모형론] Project Description
-인과 추론(Causal Inference) 수업으로 논문 리뷰 및 실제 자료로 이를 구현하는 기말 프로젝트 진행
+인과 추론(Causal Inference) 수업으로 논문 리뷰 및 실제 자료로 이를 구현하는 기말 개인 프로젝트 진행
 
 ### [선정 논문: https://doi.org/10.1016/j.aap.2016.04.007][paper]
 ### [PPT 자료][ppt-causal]
@@ -87,7 +87,7 @@ Propensity Score matching 후 Outcome model을 할 때 ACE는 2.51이며 사용�
 <br>
 
 # [자료분석특론1] Project Description
-수업 시간에 배운 함수형 데이터 분석(Functional Data Analysis)로 실제 데이터 분석 수행하는 기말 프로젝트 진행
+수업 시간에 배운 함수형 데이터 분석(Functional Data Analysis)로 실제 데이터 분석 수행하는 기말 팀 프로젝트 진행
 
 <br>
 
@@ -122,7 +122,7 @@ Propensity Score matching 후 Outcome model을 할 때 ACE는 2.51이며 사용�
 <br>
 
 # [베이지안통계특론1] Project Description
-수업 시간에 배운 내용을 적용한 데이터 분석 또는 새로운 알고리즘 제안
+수업 시간에 배운 내용을 적용한 데이터 분석 또는 새로운 알고리즘 제안하는 기말  프로젝트 진행
 
 ### [선정 주제: Medical Cost 데이터에 Bayesian GVS 기법을 통한 변수 선택 및 Bayesian GLMM 적합][dataset-2]
 
