@@ -116,6 +116,13 @@ Propensity Score matching 후 Outcome model을 할 때 ACE는 2.51이며 사용�
 - funFEM, funHDDC, fdakma 패키지로 Functional Model-Based, Kmeans 수행
 - 누적 확진자 기울기 수준에 따라 클러스터 묶임
 
+<br>
+
+### Collaborator
+
+* [@JngHyun][jh-git]
+
+[jh-git]: https://github.com/JngHyun
 [dataset-1]: https://www.kaggle.com/siraznaorem/n-covid-vs-mers-vs-sars-corona-flu-wars/#data
 [ppt-fda]: https://github.com/givitallugot/2021-Coursework-Snippet/tree/main/Image-FDA
 
