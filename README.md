@@ -74,7 +74,8 @@ Ethereum 기반의 [Remix][remix] 사이트에서 진행한 간단한 solidity �
 
 ### 실제 데이터 분석 결과
 ![image-2](https://github.com/givitallugot/2021-Coursework-Snippet/blob/main/Image-Causal/%EC%8A%AC%EB%9D%BC%EC%9D%B4%EB%93%9C15.jpeg)
-Propensity Score matching을 이용한 Outcome model 을 적합했을 때 Average causal effect는 2.51이며 사용된 변수는 모두 유의
+Propensity Score matching 후 Outcome model을 할 때 ACE는 2.51이며 사용된 변수는 모두 유의
+<br>
 
 ![image-3](https://github.com/givitallugot/2021-Coursework-Snippet/blob/main/Image-Causal/%EC%8A%AC%EB%9D%BC%EC%9D%B4%EB%93%9C16.jpeg)
 40 mile per hours zone에 따른 outcome의 causal effect는 논문과 반대였고 이러한 결과가 도출된 이유 세 가지 정리
