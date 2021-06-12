@@ -50,8 +50,11 @@
 Ethereum 기반의 [Remix][remix] 사이트에서 진행한 간단한 solidity 실습
 
 > 숫자 자동 증감 계약 생성
+> 
 > 계좌 생성 / 예금 인출 함수를 생성하여 잔고 변화 확인
+> 
 > 토큰 생성
+> 
 > 매핑 / 저자와 도서 연결
 
 [remix]: https://remix.ethereum.org/
@@ -61,7 +64,8 @@ Ethereum 기반의 [Remix][remix] 사이트에서 진행한 간단한 solidity �
 # [고급선형모형론] Project Description
 인과 추론(Causal Inference) 수업으로 논문 리뷰 및 실제 자료로 이를 구현하는 기말 프로젝트 진행
 
-선정 논문: [https://doi.org/10.1016/j.aap.2016.04.007][paper]
+[선정 논문: https://doi.org/10.1016/j.aap.2016.04.007][paper]
+
 [PPT 자료][ppt-causal]
 
 ### 논문 소개
@@ -84,7 +88,8 @@ Propensity Score matching을 이용한 Outcome model 을 적합했을 때 Averag
 # [자료분석특론1] Project Description
 수업 시간에 배운 함수형 데이터 분석(Functional Data Analysis)로 실제 데이터 분석 수행하는 기말 프로젝트 진행
 
-선정 주제: 전세계적으로 유행했던 세가지의 감염병인 코로나(Covid19), 신종플루(H1N1), 사스(SARS)의 국가별 누적 확진자 데이터를 Functional Data Analysis의 특장점을 이용하여 이 세 가지 전염병을 함께 분석
+[선정 주제: 전세계적으로 유행했던 세가지의 감염병인 코로나(Covid19), 신종플루(H1N1), 사스(SARS)의 국가별 누적 확진자 데이터를 Functional Data Analysis의 특장점을 이용하여 이 세 가지 전염병을 함께 분석][dataset-1]
+
 [PPT 자료][ppt-fda]
 
 ### 1. Mean Function
@@ -103,6 +108,7 @@ Propensity Score matching을 이용한 Outcome model 을 적합했을 때 Averag
 - funFEM, funHDDC, fdakma 패키지로 Functional Model-Based, Kmeans 수행
 - 누적 확진자 기울기 수준에 따라 클러스터 묶임
 
+[dataset-1]: https://www.kaggle.com/siraznaorem/n-covid-vs-mers-vs-sars-corona-flu-wars/#data
 [ppt-fda]: https://github.com/givitallugot/2021-Coursework-Snippet/tree/main/Image-FDA
 
 <br>
@@ -110,7 +116,7 @@ Propensity Score matching을 이용한 Outcome model 을 적합했을 때 Averag
 # [베이지안통계특론1] Project Description
 수업 시간에 배운 내용을 적용한 데이터 분석 또는 새로운 알고리즘 제안
 
-선정 주제: Medical Cost 데이터에 Bayesian GVS 기법을 통한 변수 선택 및 Bayesian GLMM 적합
+[선정 주제: Medical Cost 데이터에 Bayesian GVS 기법을 통한 변수 선택 및 Bayesian GLMM 적합][dataset-2]
 
 ### 1. project_pois_1.txt & project_nb_1.txt
 - Bayesian GLM(포아송, 음이항 분포) 적합 후 일반적인 GLM과 비교
@@ -126,6 +132,8 @@ Propensity Score matching을 이용한 Outcome model 을 적합했을 때 Averag
 ### 4. project_pois_glmm.txt
 - GVS로 선택된 변수를 이용하여 최종적으로 Bayesian Poisson GLMM 적합
 - DIC 값이 작으며 환자별 개인차를 반영한 모델 
+
+[dataset-2]: https://www.kaggle.com/mirichoi0218/insurance
 
 <br>
 
