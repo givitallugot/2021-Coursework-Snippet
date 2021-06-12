@@ -49,13 +49,13 @@
 # [블록체인의기초] Code Description
 Ethereum 기반의 [Remix][remix] 사이트에서 진행한 간단한 solidity 실습
 
-> 숫자 자동 증감 계약 생성
-> 
-> 계좌 생성 / 예금 인출 함수를 생성하여 잔고 변화 확인
-> 
-> 토큰 생성
-> 
-> 매핑 / 저자와 도서 연결
+- 숫자 자동 증감 계약 생성
+
+- 계좌 생성 / 예금 인출 함수를 생성하여 잔고 변화 확인
+
+- 토큰 생성
+
+- 매핑 / 저자와 도서 연결
 
 [remix]: https://remix.ethereum.org/
 
@@ -88,6 +88,7 @@ Propensity Score matching 후 Outcome model을 할 때 ACE는 2.51이며 사용�
 
 # [자료분석특론1] Project Description
 수업 시간에 배운 함수형 데이터 분석(Functional Data Analysis)로 실제 데이터 분석 수행하는 기말 프로젝트 진행
+
 <br>
 
 | 감염병 | 발생 기간 | 발생 국가 |
