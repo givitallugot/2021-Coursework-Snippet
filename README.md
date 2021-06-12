@@ -75,6 +75,7 @@ Ethereum 기반의 [Remix][remix] 사이트에서 진행한 간단한 solidity �
 ### 실제 데이터 분석 결과
 ![image-2](https://github.com/givitallugot/2021-Coursework-Snippet/blob/main/Image-Causal/%EC%8A%AC%EB%9D%BC%EC%9D%B4%EB%93%9C15.jpeg)
 Propensity Score matching 후 Outcome model을 할 때 ACE는 2.51이며 사용된 변수는 모두 유의
+
 <br>
 
 ![image-3](https://github.com/givitallugot/2021-Coursework-Snippet/blob/main/Image-Causal/%EC%8A%AC%EB%9D%BC%EC%9D%B4%EB%93%9C16.jpeg)
@@ -87,6 +88,7 @@ Propensity Score matching 후 Outcome model을 할 때 ACE는 2.51이며 사용�
 
 # [자료분석특론1] Project Description
 수업 시간에 배운 함수형 데이터 분석(Functional Data Analysis)로 실제 데이터 분석 수행하는 기말 프로젝트 진행
+<br>
 
 | 감염병 | 발생 기간 | 발생 국가 |
 | ------ | ----------- | ------ |
