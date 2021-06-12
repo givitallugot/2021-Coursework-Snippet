@@ -87,14 +87,14 @@ Propensity Score matching을 이용한 Outcome model 을 적합했을 때 Averag
 # [자료분석특론1] Project Description
 수업 시간에 배운 함수형 데이터 분석(Functional Data Analysis)로 실제 데이터 분석 수행하는 기말 프로젝트 진행
 
-### [선정 주제: 전세계적으로 유행했던 감염병의 국가별 누적 확진자 데이터를 이용하여 발생시기/국가/기간이 다름에도 FDA를 통해 분석 및 비교][dataset-1]
-### [PPT 자료][ppt-fda]
-
 | 감염병 | 발생 기간 | 발생 국가 |
 | ------ | ----------- | ------ |
 | 코로나(Covid19) | 2020.01.21 ~ 현재 (> 480일) | 290 개 |
 | 신종플루(H1N1) | 2009.04.24 ~ 2009.05.07 (50일) | 133개 |
 | 사스(SARS) | 2003.03.17 ~ 2003.07.11 (96일) | 37개 |
+
+### [선정 주제: 전세계적으로 유행했던 감염병의 국가별 누적 확진자 데이터를 이용하여 발생시기/국가/기간이 다름에도 FDA를 통해 분석 및 비교][dataset-1]
+### [PPT 자료][ppt-fda]
 
 ### 1. Mean Function
 - Penalized Smoothing을 통해 Basis Expansion
