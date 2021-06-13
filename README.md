@@ -129,7 +129,7 @@ Propensity Score matching 후 Outcome model을 할 때 ACE는 2.51이며 사용�
 <br>
 
 # [베이지안통계특론1] Project Description
-수업 시간에 배운 내용을 적용한 데이터 분석 또는 새로운 알고리즘 제안하는 기말  프로젝트 진행
+수업 시간에 배운 내용을 적용한 데이터 분석 또는 새로운 알고리즘 제안하는 기말 개인 프로젝트 진행
 
 ### [선정 주제: Medical Cost 데이터에 Bayesian GVS 기법을 통한 변수 선택 및 Bayesian GLMM 적합][dataset-2]
 
