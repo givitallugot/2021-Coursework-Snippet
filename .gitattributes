@@ -1,3 +1,2 @@
-*.* linguist-language=R
-*.* linguist-language=Solidity
-# *.sol linguist-detectable=true
+*.Rmd linguist-language=R
+*.sol linguist-language=Solidity
