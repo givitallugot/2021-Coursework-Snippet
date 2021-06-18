@@ -1,2 +1,2 @@
 *.rmd linguist-detectable=true
-*.html linguist-detectable=false
+*.sol linguist-detectable=false
